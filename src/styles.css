@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@theme { --font-sans: 'Manrope', sans-serif; --font-serif: 'Cormorant Garamond', Georgia, serif; }
+:root { font-family: var(--font-sans); color: #181a16; background: #f3f0e9; }
+body { margin: 0; }
+h1 { font: 400 5rem var(--font-serif); }
+main { padding: 3rem; }
