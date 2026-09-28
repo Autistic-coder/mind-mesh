@@ -80,6 +80,39 @@ dialog::backdrop { background: #10140ec4; backdrop-filter: blur(3px); }
 .skip-link { position: fixed; top: -100px; left: 20px; z-index: 100; padding: 12px; background: var(--accent); }
 .skip-link:focus { top: 12px; }
 .storage-warning { position: relative; margin-left: 236px; }
+.overview-greeting h1 { font-size: clamp(50px, 5.2vw, 92px); line-height: 1.02; letter-spacing: -.035em; }
+.overview-greeting > p { font: 400 30px var(--font-serif); color: #606259; margin-top: 12px; }
+.overview-middle { display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(250px, 1fr); align-items: center; gap: 48px; margin-top: 66px; }
+.overview-ask h2 { font-size: 48px; margin-bottom: 20px; }
+.ask-bar { display: flex; border: 1px solid #5f6255; min-height: 63px; }
+.ask-bar input { border: 0; min-width: 0; padding: 16px 23px; }
+.ask-bar .button { border-width: 0 0 0 1px; padding: 15px 34px; font-size: 13px; gap: 10px; }
+.ask-bar .button:disabled { opacity: 1; color: #505929; background: var(--accent); }
+.suggested-link { margin-top: 18px; color: #616459; letter-spacing: .025em; }
+.overview-counts { display: grid; grid-template-columns: 1fr 1fr; border-left: 1px solid var(--line); padding: 25px 0; }
+.overview-counts a { text-align: center; padding: 0 10px; }
+.overview-counts a + a { border-left: 1px solid var(--line); }
+.overview-counts a:hover { color: #748125; }
+.overview-counts span { font: 400 78px/.95 var(--font-serif); letter-spacing: -.05em; }
+.overview-counts p { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; margin-top: 22px; }
+.recent-projects { margin-top: 76px; }
+.recent-projects .section-heading { margin-bottom: 24px; }
+.projects-table td:first-child { width: 41%; }
+.projects-table td:nth-child(2) { width: 34%; }
+.project-demo { margin-left: 12px; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: #777d65; vertical-align: middle; }
+.row-arrow { display: inline-flex; padding: 6px; color: #707466; }
+.row-arrow:hover { color: var(--ink); background: var(--accent); }
+.overview-footnote { margin-top: 30px; display: flex; align-items: center; gap: 8px; font-size: 10px; color: #7c7e73; letter-spacing: .04em; }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: #8f9b57; }
+.detail-sections { display: grid; gap: 50px; }
+.count-inline { font: 400 18px var(--font-sans); color: #7d836c; vertical-align: middle; margin-left: 8px; }
+.item-list { border-top: 1px solid #8b8e7f; }
+.item-list > a { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; border-bottom: 1px solid var(--line); gap: 20px; }
+.item-list > a:hover { background: #e9e8de; }
+.item-list p { font-size: 12px; color: var(--muted); margin-top: 8px; }
+@media (max-width: 1200px) { .overview-middle { gap: 26px; grid-template-columns: minmax(0, 1fr) 230px; } .overview-counts span { font-size: 65px; } .ask-bar .button { padding-inline: 20px; } .overview-greeting h1 { font-size: 65px; } }
+@media (max-width: 900px) { .overview-middle { grid-template-columns: 1fr; margin-top: 40px; } .overview-counts { border-left: 0; border-block: 1px solid var(--line); padding-block: 22px; } .overview-counts a { display: flex; align-items: center; justify-content: center; gap: 20px; } .overview-counts span { font-size: 52px; } .overview-counts p { margin: 0; } .recent-projects { margin-top: 44px; } }
+@media (max-width: 760px) { .overview-greeting h1 { font-size: clamp(45px, 9vw, 65px); } .overview-greeting > p { font-size: 25px; } .overview-ask h2 { font-size: 38px; } .ask-bar input { padding-inline: 12px; font-size: 12px; } .ask-bar .button { padding-inline: 17px; font-size: 11px; } .project-demo { display: block; margin: 4px 0 0; } .projects-table td:nth-child(3), .projects-table th:nth-child(3) { display: none; } .overview-counts a { gap: 12px; } .overview-counts p { font-size: 9px; } }
 @media (min-width: 1600px) { main { padding-top: 54px; } }
 @media (max-width: 1100px) { .sidebar { width: 210px; padding-inline: 24px; } .workspace { margin-left: 210px; padding-inline: 32px; } .sidebar nav { gap: 12px; } }
 @media (max-width: 760px) {
