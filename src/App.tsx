@@ -7,6 +7,8 @@ import { ProjectForm } from './components/ProjectForm'
 import { Overview } from './pages/Overview'
 import { Projects, ProjectDetails } from './pages/Projects'
 import { Datasets } from './pages/Datasets'
+import { Train } from './pages/Train'
+import { Models, ModelDetails } from './pages/Models'
 
 const navigation = [['/', 'Overview'], ['/projects', 'Projects'], ['/datasets', 'Datasets'], ['/train', 'Train'], ['/models', 'Models'], ['/predictions', 'Predictions'], ['/ask', 'Ask MindMesh']]
 
@@ -28,6 +30,6 @@ export default function App() {
     {settings && <Settings onClose={() => setSettings(false)} />}
     {newProject && <ProjectForm onClose={() => setNewProject(false)} />}
     {warning && <div role="alert" className="storage-warning error">{warning}</div>}
-    <div className="workspace"><div className="topbar"><p className="eyebrow">Workspace <span>/</span> {current}</p><button onClick={() => setNewProject(true)} className="button">New project <Arrow diagonal /></button></div><main id="main" tabIndex={-1}><Routes><Route path="/" element={<Overview />} /><Route path="/projects" element={<Projects />} /><Route path="/projects/:id" element={<ProjectDetails />} /><Route path="/datasets" element={<Datasets />} />{navigation.slice(3).map(([path, name]) => <Route key={path} path={`${path}/*`} element={<Section name={name} />} />)}<Route path="*" element={<Empty title="This page has moved" to="/" action="Go to overview">Return to your workspace to continue.</Empty>} /></Routes></main></div>
+    <div className="workspace"><div className="topbar"><p className="eyebrow">Workspace <span>/</span> {current}</p><button onClick={() => setNewProject(true)} className="button">New project <Arrow diagonal /></button></div><main id="main" tabIndex={-1}><Routes><Route path="/" element={<Overview />} /><Route path="/projects" element={<Projects />} /><Route path="/projects/:id" element={<ProjectDetails />} /><Route path="/datasets" element={<Datasets />} /><Route path="/train" element={<Train />} /><Route path="/models" element={<Models />} /><Route path="/models/:id" element={<ModelDetails />} />{navigation.slice(5).map(([path, name]) => <Route key={path} path={`${path}/*`} element={<Section name={name} />} />)}<Route path="*" element={<Empty title="This page has moved" to="/" action="Go to overview">Return to your workspace to continue.</Empty>} /></Routes></main></div>
   </div>
 }
