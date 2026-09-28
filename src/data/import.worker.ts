@@ -14,5 +14,9 @@ self.onmessage = async (event: MessageEvent<{ file: File; sheetName?: string }>)
     } else if (/\.xlsx$/i.test(file.name)) {
       self.postMessage(await parseWorkbook(name, await file.arrayBuffer(), sheetName))
     } else throw new Error('Choose a CSV or XLSX file. Other file types are not supported.')
-  } catch (error) { self.postMessage({ error: error instanceof Error ? error.message : 'This file could not be read.' }) }
+  } catch (error) {
+    self.postMessage({
+      error: error instanceof Error ? error.message : 'This file could not be read.',
+    })
+  }
 }

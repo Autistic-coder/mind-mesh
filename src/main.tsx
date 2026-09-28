@@ -11,5 +11,11 @@ import App from './App'
 import { WorkspaceProvider } from './state/WorkspaceProvider'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><BrowserRouter><WorkspaceProvider><App /></WorkspaceProvider></BrowserRouter></React.StrictMode>,
+  <React.StrictMode>
+    <BrowserRouter>
+      <WorkspaceProvider>
+        <App />
+      </WorkspaceProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
 )
