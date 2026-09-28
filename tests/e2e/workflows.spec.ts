@@ -273,7 +273,9 @@ test('navigating away cancels training without adding models', async ({ page }) 
   await page.getByLabel('03 / Target column').selectOption('churn')
   await page.getByRole('button', { name: 'Run demo simulation' }).click()
   await page.getByRole('navigation').getByRole('link', { name: 'Models', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Your model library.', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Your model library.', exact: true }),
+  ).toBeVisible()
   await page.clock.fastForward(5000)
   await expect(page.getByText('6 models', { exact: true })).toBeVisible()
 })
