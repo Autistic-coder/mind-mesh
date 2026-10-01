@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Arrow, Confirm, DemoNote, Empty, Modal, PageTitle } from '../components/UI'
+import { Arrow, Confirm, Empty, Modal, PageTitle } from '../components/UI'
 import { useWorkspace } from '../state/store'
 import type { Dataset } from '../state/types'
 
@@ -61,9 +61,7 @@ export function Datasets() {
         dispatch({ type: 'dataset/add', dataset: event.data.dataset })
         setParams({ dataset: event.data.dataset.id })
         setSheetOptions([])
-        setNotice(
-          `${event.data.dataset.name} imported. Assign it to a project below to explore training.`,
-        )
+        setNotice(`${event.data.dataset.name} imported. Assign it to a project below.`)
       }
     }
     parser.onerror = () => {
@@ -77,18 +75,15 @@ export function Datasets() {
     parser.postMessage({ file, sheetName: sheet })
   }
 
-  function list(source: Dataset['source']) {
-    const datasets = state.datasets.filter((dataset) => dataset.source === source)
+  function list() {
+    const datasets = state.datasets
     return (
       <section>
         <div className="section-heading">
           <h2>
-            {source === 'synthetic' ? 'Demo datasets' : 'Your uploads'}{' '}
-            <span className="count-inline">{datasets.length}</span>
+            Your datasets <span className="count-inline">{datasets.length}</span>
           </h2>
-          <span className={`badge ${source === 'uploaded' ? 'upload' : ''}`}>
-            {source === 'synthetic' ? 'Synthetic examples' : 'Stored locally'}
-          </span>
+          <span className="badge upload">Stored locally</span>
         </div>
         {datasets.length ? (
           <div className="dataset-list">
@@ -103,7 +98,7 @@ export function Datasets() {
                   aria-pressed={selected?.id === dataset.id}
                 >
                   <span className="file-mark" aria-hidden="true">
-                    {source === 'synthetic' ? 'DEMO' : 'DATA'}
+                    DATA
                   </span>
                   <span>
                     <span className="dataset-name">{dataset.name}</span>
@@ -126,9 +121,7 @@ export function Datasets() {
           </div>
         ) : (
           <div className="quiet-empty">
-            {source === 'uploaded'
-              ? 'Your data belongs here. Upload your first CSV or workbook above.'
-              : 'No demo datasets. Restore the original examples in workspace settings.'}
+            Your data belongs here. Upload your first CSV or workbook above.
           </div>
         )}
       </section>
@@ -204,10 +197,7 @@ export function Datasets() {
           {notice}
         </p>
       )}
-      <div className="dataset-sections">
-        {list('uploaded')}
-        {list('synthetic')}
-      </div>
+      <div className="dataset-sections">{list()}</div>
       {selected && (
         <section className="dataset-preview" aria-label="Dataset details">
           <div className="section-heading">
@@ -272,10 +262,8 @@ export function Datasets() {
             </table>
           </div>
           <p className="retention-note">
-            Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows.{' '}
-            {selected.source === 'synthetic'
-              ? 'Clearly synthetic demo data.'
-              : 'User-uploaded data; never sent to a server.'}
+            Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows. Your
+            uploaded data stays in this browser.
           </p>
         </section>
       )}
@@ -284,7 +272,6 @@ export function Datasets() {
           This dataset may have been removed. Choose another dataset above.
         </Empty>
       )}
-      <DemoNote />
       {sheetOptions.length > 0 && (
         <Modal
           title="Choose a worksheet"
@@ -327,11 +314,10 @@ export function Datasets() {
             dispatch({ type: 'dataset/delete', id: removing.id })
             if (selected?.id === removing.id) setParams({})
             setRemoving(null)
-            setNotice('Dataset removed. Existing demo models keep their saved feature schemas.')
+            setNotice('Dataset removed.')
           }}
         >
-          This removes its saved preview and project assignment. Existing demo models remain usable
-          with their saved schemas; they will show that the source dataset was removed.
+          This removes its saved preview and project assignment from this browser.
         </Confirm>
       )}
     </>

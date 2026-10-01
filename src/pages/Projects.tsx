@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useWorkspace } from '../state/store'
-import { Arrow, Confirm, DemoNote, Empty, PageTitle } from '../components/UI'
+import { Arrow, Confirm, Empty, PageTitle } from '../components/UI'
 import type { Project } from '../state/types'
 
 export function ProjectTable({ projects }: { projects: Project[] }) {
@@ -12,7 +12,7 @@ export function ProjectTable({ projects }: { projects: Project[] }) {
         <thead>
           <tr>
             <th>Project</th>
-            <th>Task</th>
+            <th>Datasets</th>
             <th>Updated</th>
             <th>
               <span className="sr-only">Open project</span>
@@ -20,43 +20,33 @@ export function ProjectTable({ projects }: { projects: Project[] }) {
           </tr>
         </thead>
         <tbody>
-          {projects.map((project) => {
-            const tasks = [
-              ...new Set(
-                state.models
-                  .filter((model) => model.projectId === project.id)
-                  .map((model) => model.task),
-              ),
-            ]
-            return (
-              <tr key={project.id}>
-                <td>
-                  <Link className="project-name" to={`/projects/${project.id}`}>
-                    {project.name}
-                  </Link>
-                  {project.demo && <span className="project-demo">Demo</span>}
-                </td>
-                <td className="muted capitalize">
-                  {tasks.length ? tasks.join(' / ') : 'Not configured'}
-                </td>
-                <td className="muted whitespace-nowrap">
-                  {new Date(project.updatedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </td>
-                <td className="text-right">
-                  <Link
-                    className="row-arrow"
-                    to={`/projects/${project.id}`}
-                    aria-label={`Open ${project.name}`}
-                  >
-                    <Arrow />
-                  </Link>
-                </td>
-              </tr>
-            )
-          })}
+          {projects.map((project) => (
+            <tr key={project.id}>
+              <td>
+                <Link className="project-name" to={`/projects/${project.id}`}>
+                  {project.name}
+                </Link>
+              </td>
+              <td className="muted">
+                {state.datasets.filter((dataset) => dataset.projectId === project.id).length}
+              </td>
+              <td className="muted whitespace-nowrap">
+                {new Date(project.updatedAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </td>
+              <td className="text-right">
+                <Link
+                  className="row-arrow"
+                  to={`/projects/${project.id}`}
+                  aria-label={`Open ${project.name}`}
+                >
+                  <Arrow />
+                </Link>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -70,7 +60,7 @@ export function Projects() {
       <PageTitle
         eyebrow="Room for your next idea"
         title="Your projects."
-        description="From a question to a little more clarity. Keep each exploration together."
+        description="Keep your datasets organized around each project."
       />
       {state.projects.length ? (
         <ProjectTable
@@ -78,12 +68,9 @@ export function Projects() {
         />
       ) : (
         <Empty title="Every project begins with a question.">
-          Choose New Project above to start your first exploration.
+          Choose New Project above to create your first project.
         </Empty>
       )}
-      <DemoNote>
-        Demo projects contain synthetic examples. Your own projects stay separate.
-      </DemoNote>
     </>
   )
 }
@@ -101,16 +88,15 @@ export function ProjectDetails() {
       </Empty>
     )
   const datasets = state.datasets.filter((dataset) => dataset.projectId === id)
-  const models = state.models.filter((model) => model.projectId === id)
   return (
     <>
       <Link className="text-link mb-6" to="/projects">
         ← All projects
       </Link>
       <PageTitle
-        eyebrow={project.demo ? 'Synthetic demo project' : 'Project workspace'}
+        eyebrow="Project workspace"
         title={project.name}
-        description={project.description || 'A fresh exploration, ready for your data.'}
+        description={project.description || 'Ready for your data.'}
         action={
           <button className="text-link" onClick={() => setConfirm(true)}>
             Delete project
@@ -134,8 +120,7 @@ export function ProjectDetails() {
                   <div>
                     <h3>{dataset.name}</h3>
                     <p>
-                      {dataset.rowCount} rows · {dataset.columns.length} columns ·{' '}
-                      {dataset.source === 'synthetic' ? 'Synthetic demo' : 'Uploaded'}
+                      {dataset.rowCount} rows · {dataset.columns.length} columns · Uploaded
                     </p>
                   </div>
                   <Arrow />
@@ -143,39 +128,8 @@ export function ProjectDetails() {
               ))}
             </div>
           ) : (
-            <Empty title="Bring your question some data." to="/datasets" action="Add a dataset">
-              Upload a CSV or workbook, then assign it to this project.
-            </Empty>
-          )}
-        </section>
-        <section>
-          <div className="section-heading">
-            <h2>
-              Models <span className="count-inline">{models.length}</span>
-            </h2>
-            <Link className="text-link" to={`/train?project=${project.id}`}>
-              Set up a simulation <Arrow />
-            </Link>
-          </div>
-          {models.length ? (
-            <div className="item-list">
-              {models.map((model) => (
-                <Link key={model.id} to={`/models/${model.id}`}>
-                  <div>
-                    <h3>{model.name}</h3>
-                    <p className="capitalize">{model.task} · Demo model</p>
-                  </div>
-                  <Arrow />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <Empty
-              title="Your first comparison awaits."
-              to={`/train?project=${project.id}`}
-              action="Explore training"
-            >
-              Choose a dataset and target to try a clearly labeled training simulation.
+            <Empty title="Add data to this project." to="/datasets" action="View datasets">
+              Upload a CSV or XLSX file, then assign it to this project.
             </Empty>
           )}
         </section>
@@ -190,8 +144,7 @@ export function ProjectDetails() {
             navigate('/projects')
           }}
         >
-          This deletes the project and its {models.length} demo models. Its datasets will remain in
-          your workspace, unassigned.
+          This deletes the project. Its datasets will remain in your workspace, unassigned.
         </Confirm>
       )}
     </>

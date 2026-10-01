@@ -34,7 +34,6 @@ export function summarizeRows(name: string, raw: unknown[][]): Dataset {
   return {
     id: crypto.randomUUID(),
     name,
-    source: 'uploaded',
     projectId: null,
     columns,
     rowCount: data.length,

@@ -62,15 +62,6 @@ export function Empty({
   )
 }
 
-export function DemoNote({ children }: { children?: ReactNode }) {
-  return (
-    <div className="demo-note">
-      <span className="badge">Demo workspace</span>
-      <p>{children ?? 'Synthetic data. Explore the workflow; no real models are trained.'}</p>
-    </div>
-  )
-}
-
 export function Modal({
   title,
   children,

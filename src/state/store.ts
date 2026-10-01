@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch } from 'react'
-import { seedWorkspace } from '../data/seed'
+import { emptyWorkspace } from '../data/seed'
 import type { Action, Workspace } from './types'
 
 export function reducer(state: Workspace, action: Action): Workspace {
@@ -10,7 +10,6 @@ export function reducer(state: Workspace, action: Action): Workspace {
       return {
         ...state,
         projects: state.projects.filter((p) => p.id !== action.id),
-        models: state.models.filter((m) => m.projectId !== action.id),
         datasets: state.datasets.map((d) =>
           d.projectId === action.id ? { ...d, projectId: null } : d,
         ),
@@ -26,24 +25,10 @@ export function reducer(state: Workspace, action: Action): Workspace {
           d.id === action.id ? { ...d, projectId: action.projectId } : d,
         ),
       }
-    case 'models/add':
-      return {
-        ...state,
-        models: [...state.models, ...action.models],
-        projects: state.projects.map((p) =>
-          action.models.some((m) => m.projectId === p.id)
-            ? { ...p, updatedAt: new Date().toISOString() }
-            : p,
-        ),
-      }
-    case 'messages/add':
-      return { ...state, messages: [...state.messages, ...action.messages].slice(-100) }
-    case 'messages/clear':
-      return { ...state, messages: [] }
     case 'profile':
       return { ...state, displayName: action.name }
     case 'reset':
-      return seedWorkspace()
+      return emptyWorkspace()
   }
 }
 

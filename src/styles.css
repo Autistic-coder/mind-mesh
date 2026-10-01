@@ -273,16 +273,6 @@ main {
   line-height: 1.8;
   font-size: 14px;
 }
-.demo-note {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 15px 0;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.7;
-}
 .badge {
   display: inline-block;
   border: 1px solid #c9ccb6;
@@ -526,14 +516,6 @@ dialog::backdrop {
 .projects-table td:nth-child(2) {
   width: 34%;
 }
-.project-demo {
-  margin-left: 12px;
-  font-size: 8px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #777d65;
-  vertical-align: middle;
-}
 .row-arrow {
   display: inline-flex;
   padding: 6px;
@@ -752,10 +734,6 @@ dialog::backdrop {
 .train-note-footer {
   border-top: 1px solid var(--line);
   padding-top: 18px;
-}
-.simulation-progress {
-  margin-top: 32px;
-  font-size: 12px;
 }
 progress {
   display: block;
@@ -1152,10 +1130,6 @@ progress::-moz-progress-bar {
   .ask-bar .button {
     padding-inline: 17px;
     font-size: 11px;
-  }
-  .project-demo {
-    display: block;
-    margin: 4px 0 0;
   }
   .projects-table td:nth-child(3),
   .projects-table th:nth-child(3) {

@@ -23,7 +23,6 @@ export function ProjectForm({ onClose }: { onClose: () => void }) {
               id,
               name: name.trim(),
               description: description.trim(),
-              demo: false,
               updatedAt: new Date().toISOString(),
             },
           })

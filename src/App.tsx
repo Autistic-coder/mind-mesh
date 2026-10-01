@@ -7,19 +7,11 @@ import { ProjectForm } from './components/ProjectForm'
 import { Overview } from './pages/Overview'
 import { Projects, ProjectDetails } from './pages/Projects'
 import { Datasets } from './pages/Datasets'
-import { Train } from './pages/Train'
-import { Models, ModelDetails } from './pages/Models'
-import { Predictions } from './pages/Predictions'
-import { Ask } from './pages/Ask'
 
 const navigation = [
   ['/', 'Overview'],
   ['/projects', 'Projects'],
   ['/datasets', 'Datasets'],
-  ['/train', 'Train'],
-  ['/models', 'Models'],
-  ['/predictions', 'Predictions'],
-  ['/ask', 'Ask MindMesh'],
 ]
 
 export default function App() {
@@ -33,7 +25,7 @@ export default function App() {
   useEffect(() => {
     if (previousPath.current !== location.pathname) {
       window.scrollTo(0, 0)
-      if (location.pathname !== '/ask') document.getElementById('main')?.focus()
+      document.getElementById('main')?.focus()
       previousPath.current = location.pathname
     }
     document.title = `MindMesh · ${navigation.find(([path]) => (path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)))?.[1] ?? 'Workspace'}`
@@ -130,11 +122,6 @@ export default function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:id" element={<ProjectDetails />} />
             <Route path="/datasets" element={<Datasets />} />
-            <Route path="/train" element={<Train />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/models/:id" element={<ModelDetails />} />
-            <Route path="/predictions" element={<Predictions />} />
-            <Route path="/ask" element={<Ask />} />
             <Route
               path="*"
               element={

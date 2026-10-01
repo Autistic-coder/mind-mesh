@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { loadWorkspace, saveWorkspace } from './persistence'
 import { reducer, WorkspaceContext } from './store'
-import { seedWorkspace } from '../data/seed'
+import { emptyWorkspace } from '../data/seed'
 import type { Action } from './types'
 
 function initialize() {
@@ -9,7 +9,7 @@ function initialize() {
     return loadWorkspace(window.localStorage)
   } catch {
     return {
-      state: seedWorkspace(),
+      state: emptyWorkspace(),
       warning: 'Browser storage is disabled. This workspace will only last for this session.',
       blocked: true,
     }

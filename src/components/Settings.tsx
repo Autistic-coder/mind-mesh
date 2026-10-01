@@ -20,14 +20,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
           onClose()
         }}
       >
-        This removes your uploads, custom projects, generated models, and chat history from this
-        browser, and restores the three original demo projects.
+        This removes all projects and uploaded dataset previews saved in this browser.
       </Confirm>
     )
   return (
     <Modal title="Your workspace" onClose={onClose}>
       <p className="muted my-5 text-sm">
-        A local demo, saved in this browser. No account required.
+        Projects and dataset previews are saved in this browser. No account required.
       </p>
       <form
         onSubmit={(e) => {
@@ -53,7 +52,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
         </button>
       </form>
       <div className="mt-9 border-t border-[#d0cec5] pt-6">
-        <p className="muted mb-4 text-sm">Start over with a fresh set of synthetic examples.</p>
+        <p className="muted mb-4 text-sm">Start over with an empty workspace.</p>
         <button className="button danger" onClick={() => setReset(true)}>
           Reset local workspace
         </button>
