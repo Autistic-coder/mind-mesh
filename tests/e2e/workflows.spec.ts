@@ -41,7 +41,7 @@ test('creates a project, imports data, assigns it, and retains it after refresh'
   await expect(page.getByLabel('Assign to project')).toHaveValue(/.+/)
   await page.getByRole('navigation').getByRole('link', { name: 'Projects' }).click()
   await page.getByRole('link', { name: 'Research project', exact: true }).click()
-  await expect(page.getByRole('link', { name: /Research/ })).toBeVisible()
+  await expect(page.locator('.item-list').getByRole('link')).toContainText('Research')
 })
 
 test('imports a selected workbook sheet and reports invalid files', async ({ page }) => {

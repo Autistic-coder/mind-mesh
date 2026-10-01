@@ -360,7 +360,53 @@ textarea {
   resize: vertical;
 }
 select {
-  background-color: var(--paper);
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 13px 48px 13px 16px;
+  border-color: #a5aa93;
+  background: #faf9f3;
+  box-shadow:
+    inset 3px 0 0 #c7d69a,
+    0 2px 8px #282d1810;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+select:hover {
+  border-color: #677344;
+  background: #fffefa;
+  box-shadow:
+    inset 3px 0 0 #a6bf59,
+    0 3px 12px #282d1818;
+}
+select:focus-visible {
+  outline-offset: 3px;
+  border-color: #677344;
+  box-shadow:
+    inset 3px 0 0 #a6bf59,
+    0 3px 12px #282d1818;
+}
+select option {
+  background: #faf9f3;
+  color: var(--ink);
+}
+.select-field {
+  position: relative;
+}
+.select-field::after {
+  content: '';
+  position: absolute;
+  right: 20px;
+  bottom: 21px;
+  width: 9px;
+  height: 9px;
+  border-right: 1.5px solid #4e5c2a;
+  border-bottom: 1.5px solid #4e5c2a;
+  transform: rotate(45deg);
+  pointer-events: none;
 }
 .form-grid {
   display: grid;

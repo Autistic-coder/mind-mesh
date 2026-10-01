@@ -215,7 +215,7 @@ export function Datasets() {
               {selected.columns.length} columns <span> / </span>
               {selected.columns.reduce((sum, column) => sum + column.missing, 0)} missing cells
             </p>
-            <label className="field">
+            <label className="field select-field">
               <span>Assign to project</span>
               <select
                 value={selected.projectId ?? ''}
@@ -283,7 +283,7 @@ export function Datasets() {
           <p className="muted my-5 text-sm">
             This workbook has multiple sheets. Import one dataset at a time.
           </p>
-          <label className="field">
+          <label className="field select-field">
             <span>Worksheet</span>
             <select value={sheetName} onChange={(e) => setSheetName(e.target.value)}>
               {sheetOptions.map((name) => (
