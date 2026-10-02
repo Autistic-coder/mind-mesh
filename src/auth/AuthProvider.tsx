@@ -1,38 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { api, ApiError } from '../api'
 import { AuthContext, type Account, type AuthStatus } from './context'
 
 interface SessionResult {
   user: Account
   csrfToken: string
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(`/api/auth/${path}`, {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
-    })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
-    throw new Error('The server is unavailable. Please try again in a moment.')
-  }
-  if (!response.ok) {
-    if (response.status >= 500)
-      throw new Error('The server is temporarily unavailable. Please try again in a moment.')
-    const body = await response.json().catch(() => null)
-    const detail = body?.detail
-    throw new Error(
-      typeof detail === 'string'
-        ? detail
-        : response.status === 422
-          ? 'Check the details you entered and try again.'
-          : 'Something went wrong. Please try again.',
-    )
-  }
-  return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,7 +16,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const current = ++epoch.current
     try {
-      const session = await api<SessionResult>('me', { signal })
+      const session = await api<SessionResult>('auth/me', { signal })
       if (current !== epoch.current) return
       setUser(session.user)
       setCsrfToken(session.csrfToken)
@@ -54,7 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setCsrfToken(null)
       setStatus(
-        error instanceof Error && error.message.includes('server') ? 'unavailable' : 'anonymous',
+        error instanceof ApiError && (error.status === 0 || error.status >= 500)
+          ? 'unavailable'
+          : 'anonymous',
       )
     }
   }, [])
@@ -67,7 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function enter(path: 'login' | 'register', body: object) {
     const current = ++epoch.current
-    const session = await api<SessionResult>(path, { method: 'POST', body: JSON.stringify(body) })
+    const session = await api<SessionResult>(`auth/${path}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
     if (current !== epoch.current) return
     setUser(session.user)
     setCsrfToken(session.csrfToken)
@@ -94,15 +71,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     if (!csrfToken) throw new Error('Your session has ended. Refresh the page and try again.')
-    await api<void>('logout', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } })
+    await api<void>('auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } })
     epoch.current++
     setUser(null)
     setCsrfToken(null)
     setStatus('anonymous')
   }
 
+  async function updateDisplayName(name: string) {
+    if (!csrfToken) throw new Error('Your session has ended. Refresh the page and try again.')
+    const updated = await api<Account>('auth/profile', {
+      method: 'PATCH',
+      headers: { 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ display_name: name }),
+    })
+    setUser(updated)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, csrfToken, status, signIn, register, signOut, refresh }}>
+    <AuthContext.Provider
+      value={{ user, csrfToken, status, signIn, register, signOut, refresh, updateDisplayName }}
+    >
       {children}
     </AuthContext.Provider>
   )

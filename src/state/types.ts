@@ -16,6 +16,7 @@ export interface Dataset {
   rowCount: number
   preview: Cell[][]
   createdAt: string
+  hasFile?: boolean
 }
 
 export interface Project {
@@ -33,6 +34,7 @@ export interface Workspace {
 }
 
 export type Action =
+  | { type: 'workspace/replace'; workspace: Workspace }
   | { type: 'project/add'; project: Project }
   | { type: 'project/delete'; id: string }
   | { type: 'dataset/add'; dataset: Dataset }

@@ -2,7 +2,7 @@
 
 A local workspace for organizing projects and inspecting CSV/XLSX datasets. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, and SQLite.
 
-The workspace starts empty. Create a project, upload a dataset, preview its columns and rows, and assign it to a project. Registration, sign-in, and account settings use the local API. The API now has account-owned project and dataset endpoints, including private file storage. The React workspace still uses browser storage while it is being connected to those endpoints; its current uploads are not yet sent to the server.
+Create an account, then create a project, upload a dataset, preview its columns and rows, and assign it to a project. Projects, dataset records, and complete uploaded files are now stored by the local API under the signed-in account. New accounts start empty.
 
 ## Run locally
 
@@ -12,10 +12,10 @@ Requires Node.js 22.12 or newer and Python 3.11 or newer. In PowerShell, start t
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
 .\.venv\Scripts\alembic.exe upgrade head
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-The SQLite database and future uploads are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
+The SQLite database and uploads are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
 
 ```sh
 npm ci
@@ -31,19 +31,19 @@ $env:PATH = "$(Get-Location)\.local\node-v24.21.0-win-x64;$env:PATH"
 npm.cmd run dev
 ```
 
-To open the app on a phone connected to the same Wi-Fi, start Vite with `npm.cmd run dev -- --host 0.0.0.0`, then open `http://<computer-wifi-ip>:5173` on the phone. Keep the terminal running.
+To open the app on a phone connected to the same Wi-Fi, set `$env:MINDMESH_ORIGIN = "http://<computer-wifi-ip>:5173"` before starting the API, run Vite with `npm.cmd run dev -- --host 0.0.0.0`, then open that URL on the phone. Keep both terminals running.
 
 ## Features
 
 - Create and delete projects. Deleting a project leaves its datasets in the workspace, unassigned.
 - Import CSV or XLSX files, including a selected worksheet from a multi-sheet workbook.
 - Inspect inferred column types, missing values, row counts, and up to 10 preview rows.
-- Assign datasets to projects or remove them from the browser workspace.
+- Assign datasets to projects, download their original files, or remove them from the account workspace.
 - Change the display name or reset the workspace to empty.
 
 Imports use a Web Worker with a 20-second timeout. Limits are 5 MB per file, 20,000 data rows, and 100 columns. CSV files must use UTF-8, with non-empty unique headers and consistent row widths.
 
-The current React workspace stores project details, dataset summaries, and up to 25 preview rows per dataset in `localStorage` under `mindmesh.workspace.v1`; that browser-only path does not retain full uploaded files. The new authenticated API stores complete uploads under the ignored `var/uploads` directory and serves them through ownership-checked endpoints. Existing version 1 browser workspaces are migrated on load: custom projects and uploaded datasets are kept, while seeded projects, synthetic datasets, demo models, and sample chat are removed. Browser-only data belongs to this browser and origin; changing hostname or port creates a separate workspace.
+Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. An explicit import option is being added. Those older records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Current account data is stored in SQLite, and complete uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
 
 ## Verify
 

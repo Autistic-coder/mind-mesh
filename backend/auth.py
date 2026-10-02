@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from limits import parse
 from limits.storage import MemoryStorage
 from limits.strategies import FixedWindowRateLimiter
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
@@ -25,7 +25,7 @@ password_hasher = PasswordHasher()
 rate_limiter = FixedWindowRateLimiter(MemoryStorage())
 LOGIN_BY_IP = parse("10/minute")
 LOGIN_BY_EMAIL = parse("5/minute")
-REGISTER_BY_IP = parse("5/hour")
+REGISTER_BY_IP = parse("20/hour")
 SESSION_SECONDS = 7 * 24 * 60 * 60
 COOKIE_NAME = "mindmesh_session"
 
@@ -40,6 +40,11 @@ class RegisterInput(BaseModel):
 class LoginInput(BaseModel):
     email: EmailStr
     password: str
+
+
+class ProfileInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    display_name: str = Field(min_length=1, max_length=80)
 
 
 def digest(value: str) -> str:
@@ -172,6 +177,20 @@ def me(session: AccountSession = Depends(current_session), db: DbSession = Depen
     session.csrf_token_hash = digest(csrf)
     db.commit()
     return {"user": public_user(session.user), "csrfToken": csrf}
+
+
+@router.patch("/profile")
+def update_profile(
+    payload: ProfileInput,
+    session: AccountSession = Depends(require_csrf),
+    db: DbSession = Depends(get_db),
+):
+    name = payload.display_name.strip()
+    if not name:
+        raise HTTPException(400, "Enter a display name.")
+    session.user.display_name = name
+    db.commit()
+    return public_user(session.user)
 
 
 @router.post("/logout", status_code=204)

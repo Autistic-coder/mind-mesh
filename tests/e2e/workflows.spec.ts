@@ -1,6 +1,19 @@
 import { test, expect, type Page } from '@playwright/test'
 import * as XLSX from 'xlsx'
 
+test.beforeEach(async ({ page }) => {
+  const email = `workspace-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
+  const response = await page.request.post('/api/auth/register', {
+    data: {
+      display_name: 'Browser Test',
+      email,
+      password: 'correct horse battery staple',
+      password_confirmation: 'correct horse battery staple',
+    },
+  })
+  expect(response.status()).toBe(201)
+})
+
 async function uploadCsv(page: Page, name = 'Research.csv') {
   await page.getByLabel('Upload dataset').setInputFiles({
     name,
@@ -12,7 +25,7 @@ async function uploadCsv(page: Page, name = 'Research.csv') {
   ).toBeVisible()
 }
 
-test('starts empty and navigates between real workspace pages', async ({ page }) => {
+test('new accounts start empty and navigate between workspace pages', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
@@ -79,7 +92,7 @@ test('imports a selected workbook sheet and reports invalid files', async ({ pag
   await expect(page.getByRole('alert')).toContainText('Column headers must be unique')
 })
 
-test('removes a dataset and resets to an empty workspace', async ({ page }) => {
+test('removes a dataset and resets to an empty account workspace', async ({ page }) => {
   await page.goto('/datasets')
   await uploadCsv(page)
   await page.getByRole('button', { name: 'Remove Research' }).click()
@@ -87,14 +100,14 @@ test('removes a dataset and resets to an empty workspace', async ({ page }) => {
   await expect(page.getByText('Dataset removed.')).toBeVisible()
   await uploadCsv(page)
   await page.getByRole('button', { name: 'Workspace settings' }).click()
-  await page.getByRole('button', { name: 'Reset local workspace' }).click()
+  await page.getByRole('button', { name: 'Reset workspace' }).click()
   await page.getByRole('button', { name: 'Reset workspace' }).click()
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
 })
 
-test('migrates previously saved custom content without demo items', async ({ page }) => {
+test('does not attach old anonymous content to a signed-in account', async ({ page }) => {
   await page.addInitScript(() => {
     const now = new Date().toISOString()
     localStorage.setItem(
@@ -113,12 +126,15 @@ test('migrates previously saved custom content without demo items', async ({ pag
     )
   })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: /Good .*Ada/ })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Mine', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mine', exact: true })).toHaveCount(0)
   await expect(page.getByText('Customer churn')).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toContain('Mine')
 })
 
-test('corrupt storage stays untouched until reset', async ({ page }) => {
+test('corrupt anonymous storage stays untouched and cannot overwrite account data', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('corrupt-seeded')) {
       localStorage.setItem('mindmesh.workspace.v1', '{broken')
@@ -126,12 +142,8 @@ test('corrupt storage stays untouched until reset', async ({ page }) => {
     }
   })
   await page.goto('/')
-  await expect(page.getByRole('alert')).toContainText('Saved workspace could not be read')
+  await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toBe('{broken')
-  await page.getByRole('button', { name: 'Workspace settings' }).click()
-  await page.getByRole('button', { name: 'Reset local workspace' }).click()
-  await page.getByRole('button', { name: 'Reset workspace' }).click()
-  await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
 test('mobile layout and project dialog are usable', async ({ page }) => {

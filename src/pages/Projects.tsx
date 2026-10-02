@@ -77,8 +77,10 @@ export function Projects() {
 
 export function ProjectDetails() {
   const { id } = useParams()
-  const { state, dispatch } = useWorkspace()
+  const { state, deleteProject } = useWorkspace()
   const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
   const project = state.projects.find((item) => item.id === id)
   if (!project)
@@ -139,12 +141,25 @@ export function ProjectDetails() {
           title={`Delete ${project.name}?`}
           confirmLabel="Delete project"
           onClose={() => setConfirm(false)}
-          onConfirm={() => {
-            dispatch({ type: 'project/delete', id: project.id })
-            navigate('/projects')
+          onConfirm={async () => {
+            if (busy) return
+            setBusy(true)
+            setError('')
+            try {
+              await deleteProject(project.id)
+              navigate('/projects')
+            } catch (issue) {
+              setError(issue instanceof Error ? issue.message : 'Unable to delete project.')
+              setBusy(false)
+            }
           }}
         >
           This deletes the project. Its datasets will remain in your workspace, unassigned.
+          {error && (
+            <span className="error block mt-4" role="alert">
+              {error}
+            </span>
+          )}
         </Confirm>
       )}
     </>

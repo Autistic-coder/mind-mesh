@@ -21,6 +21,7 @@ export interface AuthContextValue {
   ) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
+  updateDisplayName: (name: string) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

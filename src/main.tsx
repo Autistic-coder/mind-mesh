@@ -7,10 +7,9 @@ import '@fontsource/manrope/latin-500.css'
 import '@fontsource/manrope/latin-600.css'
 import './styles.css'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import App from './App'
-import { WorkspaceProvider } from './state/WorkspaceProvider'
 import { AuthProvider } from './auth/AuthProvider'
 import { AccountSettings, Register, SignIn } from './auth/Pages'
+import { ProtectedWorkspace } from './auth/ProtectedWorkspace'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -20,14 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/sign-in" element={<SignIn />} />
           <Route path="/register" element={<Register />} />
           <Route path="/account" element={<AccountSettings />} />
-          <Route
-            path="/*"
-            element={
-              <WorkspaceProvider>
-                <App />
-              </WorkspaceProvider>
-            }
-          />
+          <Route path="/*" element={<ProtectedWorkspace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

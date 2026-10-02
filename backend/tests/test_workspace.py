@@ -291,3 +291,36 @@ def test_workspace_survives_new_client_and_requires_csrf(api):
         assert [item["name"] for item in workspace.json()["projects"]] == ["After restart"]
         assert [item["name"] for item in workspace.json()["datasets"]] == ["Persistent"]
         assert restarted.get(f"/api/datasets/{uploaded.json()['id']}/download").content == CSV
+
+
+def test_profile_and_workspace_reset_affect_only_current_account(api):
+    alice, _engine, tmp_path = api
+    csrf_a = account(alice, "reset-alice@example.com")
+    with TestClient(app) as bob:
+        csrf_b = account(bob, "reset-bob@example.com")
+        project_a = write(alice, csrf_a, "POST", "/api/projects", json={"name": "Alice only"})
+        project_b = write(bob, csrf_b, "POST", "/api/projects", json={"name": "Bob only"})
+        uploaded = write(
+            alice,
+            csrf_a,
+            "POST",
+            "/api/datasets",
+            files={"file": ("Alice.csv", CSV, "text/csv")},
+        )
+        assert uploaded.status_code == 201
+        assert (
+            write(alice, csrf_a, "PATCH", "/api/auth/profile", json={"display_name": "Ada"}).json()[
+                "displayName"
+            ]
+            == "Ada"
+        )
+        assert alice.get("/api/workspace").json()["displayName"] == "Ada"
+        assert bob.get("/api/workspace").json()["displayName"] == "reset-bob"
+        assert alice.delete("/api/workspace").status_code == 403
+        assert write(alice, csrf_a, "DELETE", "/api/workspace").status_code == 204
+        assert alice.get("/api/workspace").json()["projects"] == []
+        assert alice.get("/api/workspace").json()["datasets"] == []
+        assert alice.get(f"/api/projects/{project_a.json()['id']}").status_code == 404
+        assert alice.get(f"/api/datasets/{uploaded.json()['id']}/download").status_code == 404
+        assert bob.get(f"/api/projects/{project_b.json()['id']}").status_code == 200
+        assert not list((tmp_path / "uploads").iterdir())

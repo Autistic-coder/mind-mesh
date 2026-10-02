@@ -14,7 +14,7 @@ from .auth import current_user, require_csrf
 from .config import get_settings
 from .database import get_db
 from .dataset_files import MAX_BYTES, inspect_upload, validate_filename
-from .models import Dataset, Project, User, utcnow
+from .models import Conversation, Dataset, Project, User, utcnow
 from .models import Session as AccountSession
 
 router = APIRouter(prefix="/api", tags=["workspace"])
@@ -92,6 +92,25 @@ def workspace(user: User = Depends(current_user), db: DbSession = Depends(get_db
         "projects": [project_json(item) for item in projects],
         "datasets": [dataset_json(item) for item in datasets],
     }
+
+
+@router.delete("/workspace", status_code=204)
+def reset_workspace(
+    session: AccountSession = Depends(require_csrf), db: DbSession = Depends(get_db)
+):
+    datasets = db.scalars(select(Dataset).where(Dataset.owner_id == session.user_id)).all()
+    for conversation in db.scalars(
+        select(Conversation).where(Conversation.owner_id == session.user_id)
+    ):
+        db.delete(conversation)
+    for dataset in datasets:
+        db.delete(dataset)
+    for project in db.scalars(select(Project).where(Project.owner_id == session.user_id)):
+        db.delete(project)
+    db.commit()
+    for dataset in datasets:
+        if dataset.stored_name and STORED_NAME.fullmatch(dataset.stored_name):
+            (get_settings().upload_dir / dataset.stored_name).unlink(missing_ok=True)
 
 
 @router.get("/projects")

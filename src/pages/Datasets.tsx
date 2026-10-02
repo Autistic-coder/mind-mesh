@@ -5,7 +5,7 @@ import { useWorkspace } from '../state/store'
 import type { Dataset } from '../state/types'
 
 export function Datasets() {
-  const { state, dispatch } = useWorkspace()
+  const { state, uploadDataset, assignDataset, deleteDataset } = useWorkspace()
   const [params, setParams] = useSearchParams()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -14,21 +14,32 @@ export function Datasets() {
   const [removing, setRemoving] = useState<Dataset | null>(null)
   const [notice, setNotice] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [assigning, setAssigning] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const fileRef = useRef<File | null>(null)
   const worker = useRef<Worker | null>(null)
+  const uploadController = useRef<AbortController | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const selected = state.datasets.find((dataset) => dataset.id === params.get('dataset'))
 
-  function stopImport() {
+  function stopWorker() {
     worker.current?.terminate()
     worker.current = null
     if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+  }
+  function stopImport() {
+    stopWorker()
+    uploadController.current?.abort()
+    uploadController.current = null
+    fileRef.current = null
     setBusy(false)
   }
   useEffect(
     () => () => {
       worker.current?.terminate()
+      uploadController.current?.abort()
       if (timer.current) clearTimeout(timer.current)
     },
     [],
@@ -47,29 +58,50 @@ export function Datasets() {
     parser.onmessage = (
       event: MessageEvent<{ dataset?: Dataset; sheets?: string[]; error?: string }>,
     ) => {
-      stopImport()
+      if (worker.current !== parser) return
+      stopWorker()
       if (event.data.error) {
+        setBusy(false)
         setError(event.data.error)
         return
       }
       if (event.data.sheets) {
+        setBusy(false)
         setSheetOptions(event.data.sheets)
         setSheetName(event.data.sheets[0])
         return
       }
       if (event.data.dataset) {
-        dispatch({ type: 'dataset/add', dataset: event.data.dataset })
-        setParams({ dataset: event.data.dataset.id })
-        setSheetOptions([])
-        setNotice(`${event.data.dataset.name} imported. Assign it to a project below.`)
+        const controller = new AbortController()
+        uploadController.current = controller
+        void uploadDataset(file, sheet, controller.signal)
+          .then((dataset) => {
+            if (controller.signal.aborted) return
+            setParams({ dataset: dataset.id })
+            setSheetOptions([])
+            setNotice(`${dataset.name} imported. Assign it to a project below.`)
+          })
+          .catch((issue) => {
+            if (!controller.signal.aborted)
+              setError(issue instanceof Error ? issue.message : 'Unable to save this dataset.')
+          })
+          .finally(() => {
+            if (uploadController.current === controller) {
+              uploadController.current = null
+              fileRef.current = null
+              setBusy(false)
+            }
+          })
       }
     }
     parser.onerror = () => {
-      stopImport()
+      stopWorker()
+      setBusy(false)
       setError('The file could not be parsed. Check its format or try exporting it again.')
     }
     timer.current = setTimeout(() => {
-      stopImport()
+      stopWorker()
+      setBusy(false)
       setError('Parsing took too long. Try a smaller or simpler file.')
     }, 20_000)
     parser.postMessage({ file, sheetName: sheet })
@@ -83,7 +115,7 @@ export function Datasets() {
           <h2>
             Your datasets <span className="count-inline">{datasets.length}</span>
           </h2>
-          <span className="badge upload">Stored locally</span>
+          <span className="badge upload">Private workspace</span>
         </div>
         {datasets.length ? (
           <div className="dataset-list">
@@ -184,8 +216,7 @@ export function Datasets() {
         )}
       </div>
       <p className="retention-note">
-        Files stay in your browser. Only the schema, row count, and up to 25 preview rows are saved;
-        full files are not retained.
+        Complete files are saved to your account. Previews show up to 25 rows.
       </p>
       {error && (
         <p className="error my-5" role="alert">
@@ -205,9 +236,19 @@ export function Datasets() {
               <p className="eyebrow muted mb-3">Dataset preview</p>
               <h2>{selected.name}</h2>
             </div>
-            <button className="text-link" onClick={() => setParams({})}>
-              Close preview
-            </button>
+            <div className="flex flex-wrap gap-5">
+              {selected.hasFile && (
+                <a
+                  className="text-link"
+                  href={`/api/datasets/${encodeURIComponent(selected.id)}/download`}
+                >
+                  Download original
+                </a>
+              )}
+              <button className="text-link" onClick={() => setParams({})}>
+                Close preview
+              </button>
+            </div>
           </div>
           <div className="preview-summary">
             <p>
@@ -219,13 +260,18 @@ export function Datasets() {
               <span>Assign to project</span>
               <select
                 value={selected.projectId ?? ''}
-                onChange={(e) =>
-                  dispatch({
-                    type: 'dataset/assign',
-                    id: selected.id,
-                    projectId: e.target.value || null,
-                  })
-                }
+                disabled={assigning}
+                onChange={async (e) => {
+                  setAssigning(true)
+                  setError('')
+                  try {
+                    await assignDataset(selected.id, e.target.value || null)
+                  } catch (issue) {
+                    setError(issue instanceof Error ? issue.message : 'Unable to assign dataset.')
+                  } finally {
+                    setAssigning(false)
+                  }
+                }}
               >
                 <option value="">Unassigned</option>
                 {state.projects.map((project) => (
@@ -262,8 +308,8 @@ export function Datasets() {
             </table>
           </div>
           <p className="retention-note">
-            Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows. Your
-            uploaded data stays in this browser.
+            Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows. The
+            original file is saved to your account.
           </p>
         </section>
       )}
@@ -310,14 +356,28 @@ export function Datasets() {
           title={`Remove ${removing.name}?`}
           confirmLabel="Remove dataset"
           onClose={() => setRemoving(null)}
-          onConfirm={() => {
-            dispatch({ type: 'dataset/delete', id: removing.id })
-            if (selected?.id === removing.id) setParams({})
-            setRemoving(null)
-            setNotice('Dataset removed.')
+          onConfirm={async () => {
+            if (deleting) return
+            setDeleting(true)
+            setError('')
+            try {
+              await deleteDataset(removing.id)
+              if (selected?.id === removing.id) setParams({})
+              setRemoving(null)
+              setNotice('Dataset removed.')
+            } catch (issue) {
+              setError(issue instanceof Error ? issue.message : 'Unable to remove dataset.')
+            } finally {
+              setDeleting(false)
+            }
           }}
         >
-          This removes its saved preview and project assignment from this browser.
+          This removes its preview, project assignment, and stored file from your account.
+          {error && (
+            <span className="error block mt-4" role="alert">
+              {error}
+            </span>
+          )}
         </Confirm>
       )}
     </>

@@ -1,9 +1,11 @@
-import { createContext, useContext, type Dispatch } from 'react'
+import { createContext, useContext } from 'react'
 import { emptyWorkspace } from '../data/seed'
-import type { Action, Workspace } from './types'
+import type { Action, Dataset, Project, Workspace } from './types'
 
 export function reducer(state: Workspace, action: Action): Workspace {
   switch (action.type) {
+    case 'workspace/replace':
+      return action.workspace
     case 'project/add':
       return { ...state, projects: [...state.projects, action.project] }
     case 'project/delete':
@@ -34,8 +36,13 @@ export function reducer(state: Workspace, action: Action): Workspace {
 
 export const WorkspaceContext = createContext<{
   state: Workspace
-  dispatch: Dispatch<Action>
-  warning: string
+  createProject: (name: string, description: string) => Promise<Project>
+  deleteProject: (id: string) => Promise<void>
+  uploadDataset: (file: File, sheetName?: string, signal?: AbortSignal) => Promise<Dataset>
+  assignDataset: (id: string, projectId: string | null) => Promise<void>
+  deleteDataset: (id: string) => Promise<void>
+  updateName: (name: string) => Promise<void>
+  resetWorkspace: () => Promise<void>
 } | null>(null)
 export function useWorkspace() {
   const context = useContext(WorkspaceContext)

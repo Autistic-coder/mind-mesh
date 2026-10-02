@@ -18,7 +18,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [settings, setSettings] = useState(false)
   const [newProject, setNewProject] = useState(false)
-  const { state, warning } = useWorkspace()
+  const { state } = useWorkspace()
   const location = useLocation()
   const menuButton = useRef<HTMLButtonElement>(null)
   const previousPath = useRef(location.pathname)
@@ -102,11 +102,6 @@ export default function App() {
       </aside>
       {settings && <Settings onClose={() => setSettings(false)} />}
       {newProject && <ProjectForm onClose={() => setNewProject(false)} />}
-      {warning && (
-        <div role="alert" className="storage-warning error">
-          {warning}
-        </div>
-      )}
       <div className="workspace" inert={menuOpen}>
         <div className="topbar">
           <p className="eyebrow">
