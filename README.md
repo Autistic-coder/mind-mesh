@@ -1,19 +1,28 @@
 # MindMesh
 
-A local workspace for organizing projects and inspecting CSV/XLSX datasets. Built with React, TypeScript, Vite, and Tailwind CSS.
+A local workspace for organizing projects and inspecting CSV/XLSX datasets. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, and SQLite.
 
-The workspace starts empty. Create a project, upload a dataset, preview its columns and rows, and assign it to a project. The app has no backend or account service. Files are parsed in the browser and never sent to a server.
+The workspace starts empty. Create a project, upload a dataset, preview its columns and rows, and assign it to a project. Registration, sign-in, and account settings now use the local API. Workspace records and uploads still use browser storage while the account-owned workspace API is being connected. Files are parsed in the browser and are not yet sent to the server.
 
 ## Run locally
 
-Requires Node.js 22.12 or newer.
+Requires Node.js 22.12 or newer and Python 3.11 or newer. In PowerShell, start the API in one terminal:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
+.\.venv\Scripts\alembic.exe upgrade head
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+The SQLite database and future uploads are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite, normally **http://127.0.0.1:5173**. Stop the server with Ctrl+C.
+Open **http://127.0.0.1:5173**. Vite proxies `/api` to the local backend so the browser uses one origin. Stop each server with Ctrl+C.
 
 On the original Windows workspace, Node.js is available in `.local`. PowerShell can use its `npm.cmd` launcher without changing the script execution policy:
 
