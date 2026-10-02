@@ -4,3 +4,5 @@ SQLAlchemy>=2.0,<3
 alembic>=1.13,<2
 argon2-cffi>=23.1,<26
 python-multipart>=0.0.9,<1
+email-validator>=2.0,<3
+limits>=5.0,<6
