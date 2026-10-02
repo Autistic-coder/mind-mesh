@@ -1,0 +1,293 @@
+"""Exact resource IDs must not cross account boundaries."""
+
+from io import BytesIO
+
+from fastapi.testclient import TestClient
+from openpyxl import Workbook
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+
+from backend.main import app
+from backend.models import Dataset, Project
+
+CSV = b"age,income,outcome\n25,40000,Yes\n40,75000,No\n"
+
+
+def account(client, email):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "display_name": email.split("@")[0],
+            "email": email,
+            "password": "correct horse battery staple",
+            "password_confirmation": "correct horse battery staple",
+        },
+    )
+    assert response.status_code == 201
+    return response.json()["csrfToken"]
+
+
+def write(client, csrf, method, path, **kwargs):
+    return client.request(method, path, headers={"X-CSRF-Token": csrf}, **kwargs)
+
+
+def test_two_accounts_cannot_access_exact_ids_or_forge_ownership(api):
+    alice, engine, tmp_path = api
+    csrf_a = account(alice, "alice@example.com")
+    with TestClient(app) as bob, TestClient(app) as anonymous:
+        csrf_b = account(bob, "bob@example.com")
+        project_a = write(
+            alice,
+            csrf_a,
+            "POST",
+            "/api/projects",
+            json={"name": "Private research", "description": "Mine"},
+        )
+        assert project_a.status_code == 201
+        project_id = project_a.json()["id"]
+        upload = write(
+            alice,
+            csrf_a,
+            "POST",
+            "/api/datasets",
+            data={"project_id": project_id},
+            files={"file": ("Research.csv", CSV, "text/csv")},
+        )
+        assert upload.status_code == 201, upload.text
+        dataset_id = upload.json()["id"]
+        assert upload.json()["rowCount"] == 2
+        assert upload.json()["preview"][0] == ["25", "40000", "Yes"]
+        assert upload.json()["hasFile"] is True
+        download = alice.get(f"/api/datasets/{dataset_id}/download")
+        assert download.content == CSV
+        assert "no-store" in download.headers["Cache-Control"]
+        assert alice.get(f"/api/datasets/{dataset_id}/preview").json()["rowCount"] == 2
+        assert len(list((tmp_path / "uploads").iterdir())) == 1
+        assert not (tmp_path / "uploads" / "Research.csv").exists()
+
+        assert bob.get("/api/workspace").json()["projects"] == []
+        assert bob.get("/api/projects", params={"owner_id": project_a.json()["id"]}).json() == []
+        assert bob.get("/api/datasets").json() == []
+        for path in [
+            f"/api/projects/{project_id}",
+            f"/api/datasets/{dataset_id}",
+            f"/api/datasets/{dataset_id}/preview",
+            f"/api/datasets/{dataset_id}/download",
+        ]:
+            assert bob.get(path).status_code == 404
+            assert anonymous.get(path).status_code == 401
+        assert anonymous.get("/api/workspace").status_code == 401
+        assert anonymous.get("/api/projects").status_code == 401
+        assert anonymous.get("/api/datasets").status_code == 401
+        assert write(anonymous, csrf_b, "DELETE", f"/api/projects/{project_id}").status_code == 401
+        assert write(anonymous, csrf_b, "DELETE", f"/api/datasets/{dataset_id}").status_code == 401
+
+        assert (
+            write(
+                bob,
+                csrf_b,
+                "PATCH",
+                f"/api/projects/{project_id}",
+                json={"name": "Stolen"},
+            ).status_code
+            == 404
+        )
+        assert write(bob, csrf_b, "DELETE", f"/api/projects/{project_id}").status_code == 404
+        assert (
+            write(
+                bob,
+                csrf_b,
+                "PATCH",
+                f"/api/datasets/{dataset_id}",
+                json={"projectId": None},
+            ).status_code
+            == 404
+        )
+        assert write(bob, csrf_b, "DELETE", f"/api/datasets/{dataset_id}").status_code == 404
+        assert (
+            write(
+                bob,
+                csrf_b,
+                "POST",
+                "/api/projects",
+                json={"name": "Fake", "owner_id": project_a.json()["id"]},
+            ).status_code
+            == 422
+        )
+        assert (
+            write(
+                bob,
+                csrf_b,
+                "PATCH",
+                f"/api/datasets/{dataset_id}",
+                json={"projectId": None, "owner_id": project_a.json()["id"]},
+            ).status_code
+            == 422
+        )
+        project_b = write(bob, csrf_b, "POST", "/api/projects", json={"name": "Bob's work"}).json()[
+            "id"
+        ]
+        assert (
+            write(
+                alice,
+                csrf_a,
+                "PATCH",
+                f"/api/datasets/{dataset_id}",
+                json={"projectId": project_b},
+            ).status_code
+            == 404
+        )
+        assert (
+            write(
+                bob,
+                csrf_b,
+                "POST",
+                "/api/datasets",
+                data={"project_id": project_id},
+                files={"file": ("Other.csv", CSV, "text/csv")},
+            ).status_code
+            == 404
+        )
+        assert (
+            write(
+                alice,
+                csrf_a,
+                "PATCH",
+                f"/api/datasets/{dataset_id}",
+                json={"projectId": None},
+            ).status_code
+            == 200
+        )
+        assert (
+            write(
+                alice,
+                csrf_a,
+                "PATCH",
+                f"/api/projects/{project_id}",
+                json={"name": "Renamed"},
+            ).json()["name"]
+            == "Renamed"
+        )
+        assert write(alice, csrf_a, "DELETE", f"/api/projects/{project_id}").status_code == 204
+        assert alice.get(f"/api/datasets/{dataset_id}").json()["projectId"] is None
+        assert bob.get(f"/api/projects/{project_b}").status_code == 200
+
+        with DbSession(engine) as db:
+            dataset = db.scalar(select(Dataset).where(Dataset.id == dataset_id))
+            assert dataset.owner_id != db.get(Project, project_b).owner_id
+        assert write(alice, csrf_a, "DELETE", f"/api/datasets/{dataset_id}").status_code == 204
+        assert not list((tmp_path / "uploads").iterdir())
+        alice_user_id = alice.get("/api/auth/me").json()["user"]["id"]
+        forged_upload = write(
+            bob,
+            csrf_b,
+            "POST",
+            "/api/datasets",
+            data={"owner_id": alice_user_id},
+            files={"file": ("Forged.csv", CSV, "text/csv")},
+        )
+        assert forged_upload.status_code == 201
+        assert alice.get(f"/api/datasets/{forged_upload.json()['id']}").status_code == 404
+        assert bob.get(f"/api/datasets/{forged_upload.json()['id']}").status_code == 200
+
+
+def test_upload_validation_and_worksheet_selection(api):
+    client, _engine, tmp_path = api
+    csrf = account(client, "sheets@example.com")
+    for name, contents in [
+        ("../private.csv", CSV),
+        ("malware.exe", CSV),
+        ("bad.csv", b"a,a\n1,2\n"),
+        ("bad.xlsx", b"not a workbook"),
+        ("oversize.csv", b"a\n" + b"x" * (5 * 1024 * 1024)),
+    ]:
+        result = write(
+            client,
+            csrf,
+            "POST",
+            "/api/datasets",
+            files={"file": (name, contents, "application/octet-stream")},
+        )
+        assert result.status_code == 400, (name, result.text)
+    assert not (tmp_path / "uploads").exists()
+
+    book = Workbook()
+    book.active.title = "First"
+    book.active.append(["x", "y"])
+    book.active.append([1, 2])
+    second = book.create_sheet("Rent")
+    second.append(["area", "rent"])
+    second.append([500, 1200])
+    output = BytesIO()
+    book.save(output)
+    bytes_ = output.getvalue()
+    no_sheet = write(
+        client,
+        csrf,
+        "POST",
+        "/api/datasets",
+        files={
+            "file": (
+                "Homes.xlsx",
+                bytes_,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert no_sheet.status_code == 400
+    chosen = write(
+        client,
+        csrf,
+        "POST",
+        "/api/datasets",
+        data={"sheet_name": "Rent"},
+        files={
+            "file": (
+                "Homes.xlsx",
+                bytes_,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert chosen.status_code == 201, chosen.text
+    assert chosen.json()["name"] == "Homes · Rent"
+    assert chosen.json()["preview"] == [[500, 1200]]
+    assert client.get(f"/api/datasets/{chosen.json()['id']}/download").content == bytes_
+
+
+def test_workspace_survives_new_client_and_requires_csrf(api):
+    client, engine, _tmp_path = api
+    csrf = account(client, "persist@example.com")
+    created = write(client, csrf, "POST", "/api/projects", json={"name": "After restart"})
+    assert created.status_code == 201
+    uploaded = write(
+        client,
+        csrf,
+        "POST",
+        "/api/datasets",
+        files={"file": ("Persistent.csv", CSV, "text/csv")},
+    )
+    assert uploaded.status_code == 201
+    assert client.post("/api/projects", json={"name": "No CSRF"}).status_code == 403
+    assert (
+        client.post(
+            "/api/projects",
+            headers={"Origin": "https://wrong.example", "X-CSRF-Token": csrf},
+            json={"name": "Wrong origin"},
+        ).status_code
+        == 403
+    )
+    engine.dispose()
+    with TestClient(app) as restarted:
+        login = restarted.post(
+            "/api/auth/login",
+            json={
+                "email": "persist@example.com",
+                "password": "correct horse battery staple",
+            },
+        )
+        assert login.status_code == 200
+        workspace = restarted.get("/api/workspace")
+        assert [item["name"] for item in workspace.json()["projects"]] == ["After restart"]
+        assert [item["name"] for item in workspace.json()["datasets"]] == ["Persistent"]
+        assert restarted.get(f"/api/datasets/{uploaded.json()['id']}/download").content == CSV

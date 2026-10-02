@@ -2,7 +2,7 @@
 
 A local workspace for organizing projects and inspecting CSV/XLSX datasets. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, and SQLite.
 
-The workspace starts empty. Create a project, upload a dataset, preview its columns and rows, and assign it to a project. Registration, sign-in, and account settings now use the local API. Workspace records and uploads still use browser storage while the account-owned workspace API is being connected. Files are parsed in the browser and are not yet sent to the server.
+The workspace starts empty. Create a project, upload a dataset, preview its columns and rows, and assign it to a project. Registration, sign-in, and account settings use the local API. The API now has account-owned project and dataset endpoints, including private file storage. The React workspace still uses browser storage while it is being connected to those endpoints; its current uploads are not yet sent to the server.
 
 ## Run locally
 
@@ -43,7 +43,7 @@ To open the app on a phone connected to the same Wi-Fi, start Vite with `npm.cmd
 
 Imports use a Web Worker with a 20-second timeout. Limits are 5 MB per file, 20,000 data rows, and 100 columns. CSV files must use UTF-8, with non-empty unique headers and consistent row widths.
 
-`localStorage` stores project details, dataset summaries, and up to 25 preview rows per dataset under `mindmesh.workspace.v1`. Full uploaded files are not retained. Existing version 1 workspaces are migrated on load: custom projects and uploaded datasets are kept, while seeded projects, synthetic datasets, demo models, and sample chat are removed. Data belongs to this browser and origin; changing hostname or port creates a separate workspace.
+The current React workspace stores project details, dataset summaries, and up to 25 preview rows per dataset in `localStorage` under `mindmesh.workspace.v1`; that browser-only path does not retain full uploaded files. The new authenticated API stores complete uploads under the ignored `var/uploads` directory and serves them through ownership-checked endpoints. Existing version 1 browser workspaces are migrated on load: custom projects and uploaded datasets are kept, while seeded projects, synthetic datasets, demo models, and sample chat are removed. Browser-only data belongs to this browser and origin; changing hostname or port creates a separate workspace.
 
 ## Verify
 

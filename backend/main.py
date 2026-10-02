@@ -6,18 +6,27 @@ from fastapi.responses import JSONResponse
 
 from .auth import router as auth_router
 from .config import get_settings
-
+from .workspace import router as workspace_router
 
 app = FastAPI(title="MindMesh API", docs_url=None, redoc_url=None)
 app.include_router(auth_router)
+app.include_router(workspace_router)
 
 
 @app.middleware("http")
 async def browser_security(request: Request, call_next):
-    if request.url.path.startswith("/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
+    if request.url.path.startswith("/api/") and request.method not in {
+        "GET",
+        "HEAD",
+        "OPTIONS",
+    }:
         origin = request.headers.get("origin")
         if origin and origin.rstrip("/") != get_settings().origin:
-            return JSONResponse({"detail": "Request origin is not allowed."}, status_code=403, headers={"Cache-Control": "no-store"})
+            return JSONResponse(
+                {"detail": "Request origin is not allowed."},
+                status_code=403,
+                headers={"Cache-Control": "no-store"},
+            )
     response = await call_next(request)
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store, private"
@@ -29,7 +38,9 @@ async def browser_security(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def validation_error(_request: Request, error: RequestValidationError):
     # Pydantic's default response includes the submitted value. Never echo passwords.
-    issues = [{"loc": item["loc"], "msg": item["msg"], "type": item["type"]} for item in error.errors()]
+    issues = [
+        {"loc": item["loc"], "msg": item["msg"], "type": item["type"]} for item in error.errors()
+    ]
     return JSONResponse({"detail": issues}, status_code=422, headers={"Cache-Control": "no-store"})
 
 

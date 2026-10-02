@@ -5,10 +5,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, event, pool
 
+from backend import models  # noqa: F401 - registers the schema with Base
 from backend.config import get_settings
 from backend.database import Base
-from backend import models  # noqa: F401 - registers the schema with Base
-
 
 config = context.config
 if config.config_file_name is not None:
