@@ -37,6 +37,15 @@ test('new accounts start empty and navigate between workspace pages', async ({ p
   await expect(page.getByText('Your data belongs here.')).toBeVisible()
 })
 
+test('loads an account-owned sample project on deliberate request', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
+  await page.getByRole('button', { name: 'Load sample project' }).click()
+  await expect(page.getByRole('heading', { name: 'Sample research', exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Sample research', exact: true })).toBeVisible()
+})
+
 test('creates a project, imports data, assigns it, and retains it after refresh', async ({
   page,
 }) => {
@@ -130,6 +139,18 @@ test('does not attach old anonymous content to a signed-in account', async ({ pa
   await expect(page.getByRole('link', { name: 'Mine', exact: true })).toHaveCount(0)
   await expect(page.getByText('Customer churn')).toHaveCount(0)
   expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toContain('Mine')
+  await page.getByRole('button', { name: 'Workspace settings' }).click()
+  await page.getByRole('button', { name: 'Review browser copy' }).click()
+  await expect(page.getByRole('dialog')).toContainText('1 projects and 0 dataset previews')
+  await page.getByRole('button', { name: 'Import into this account' }).click()
+  await expect(page.getByRole('status')).toContainText('Imported 1 projects')
+  await page.getByRole('button', { name: 'Close dialog' }).click()
+  await page.goto('/projects')
+  await expect(page.getByRole('link', { name: 'Mine', exact: true })).toBeVisible()
+  await expect(page.getByText('Customer churn')).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('link', { name: 'Mine', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toContain('Mine')
 })
 
 test('corrupt anonymous storage stays untouched and cannot overwrite account data', async ({
@@ -144,6 +165,9 @@ test('corrupt anonymous storage stays untouched and cannot overwrite account dat
   await page.goto('/')
   await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toBe('{broken')
+  await page.getByRole('button', { name: 'Workspace settings' }).click()
+  await page.getByRole('button', { name: 'Review browser copy' }).click()
+  await expect(page.getByRole('alert')).toContainText('could not be read')
 })
 
 test('mobile layout and project dialog are usable', async ({ page }) => {

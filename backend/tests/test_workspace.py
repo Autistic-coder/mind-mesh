@@ -324,3 +324,92 @@ def test_profile_and_workspace_reset_affect_only_current_account(api):
         assert alice.get(f"/api/datasets/{uploaded.json()['id']}/download").status_code == 404
         assert bob.get(f"/api/projects/{project_b.json()['id']}").status_code == 200
         assert not list((tmp_path / "uploads").iterdir())
+
+
+def test_explicit_legacy_import_creates_private_copies_without_files(api):
+    alice, _engine, _tmp_path = api
+    csrf_a = account(alice, "legacy-alice@example.com")
+    with TestClient(app) as bob, TestClient(app) as anonymous:
+        csrf_b = account(bob, "legacy-bob@example.com")
+        source = {
+            "version": 2,
+            "displayName": "Old browser user",
+            "projects": [
+                {
+                    "id": "old-project",
+                    "name": "Old work",
+                    "description": "Notes",
+                    "updatedAt": "2025-01-01T00:00:00Z",
+                }
+            ],
+            "datasets": [
+                {
+                    "id": "old-data",
+                    "name": "Old data",
+                    "projectId": "old-project",
+                    "columns": [
+                        {
+                            "name": "value",
+                            "type": "number",
+                            "missing": 0,
+                            "uniqueCount": 30,
+                            "values": [str(i) for i in range(30)],
+                        }
+                    ],
+                    "rowCount": 1,
+                    "preview": [[42]],
+                    "createdAt": "2025-01-01T00:00:00Z",
+                }
+            ],
+        }
+        assert bob.get("/api/workspace").json()["projects"] == []
+        assert anonymous.post("/api/workspace/import", json=source).status_code == 401
+        assert alice.post("/api/workspace/import", json=source).status_code == 403
+        forged = {**source, "owner_id": "old-project"}
+        assert write(bob, csrf_b, "POST", "/api/workspace/import", json=forged).status_code == 422
+        forged_project = {
+            **source,
+            "projects": [{**source["projects"][0], "owner_id": "old-project"}],
+        }
+        assert (
+            write(bob, csrf_b, "POST", "/api/workspace/import", json=forged_project).status_code
+            == 422
+        )
+        forged_dataset = {
+            **source,
+            "datasets": [{**source["datasets"][0], "owner_id": "old-project"}],
+        }
+        assert (
+            write(bob, csrf_b, "POST", "/api/workspace/import", json=forged_dataset).status_code
+            == 422
+        )
+        imported = write(alice, csrf_a, "POST", "/api/workspace/import", json=source)
+        assert imported.status_code == 201, imported.text
+        assert imported.json() == {"projectsImported": 1, "datasetsImported": 1}
+        owned = alice.get("/api/workspace").json()
+        project_id = owned["projects"][0]["id"]
+        dataset_id = owned["datasets"][0]["id"]
+        assert project_id != "old-project" and dataset_id != "old-data"
+        assert owned["datasets"][0]["projectId"] == project_id
+        assert owned["datasets"][0]["hasFile"] is False
+        assert alice.get(f"/api/datasets/{dataset_id}/download").status_code == 404
+        assert bob.get("/api/workspace").json()["projects"] == []
+        for path in (
+            f"/api/projects/{project_id}",
+            f"/api/datasets/{dataset_id}",
+            f"/api/datasets/{dataset_id}/preview",
+            f"/api/datasets/{dataset_id}/download",
+        ):
+            assert bob.get(path).status_code == 404
+        assert write(bob, csrf_b, "DELETE", f"/api/projects/{project_id}").status_code == 404
+        assert write(bob, csrf_b, "DELETE", f"/api/datasets/{dataset_id}").status_code == 404
+        assert (
+            write(
+                bob, csrf_b, "PATCH", f"/api/datasets/{dataset_id}", json={"projectId": None}
+            ).status_code
+            == 404
+        )
+        assert write(bob, csrf_b, "POST", "/api/workspace/import", json=source).status_code == 201
+        bob_owned = bob.get("/api/workspace").json()
+        assert bob_owned["projects"][0]["id"] != project_id
+        assert bob_owned["datasets"][0]["id"] != dataset_id

@@ -3,12 +3,7 @@ import * as XLSX from 'xlsx'
 import { parseCsv, parseWorkbook } from '../../src/data/imports'
 import { summarizeRows } from '../../src/data/datasets'
 import { emptyWorkspace } from '../../src/data/seed'
-import {
-  loadWorkspace,
-  saveWorkspace,
-  STORAGE_BUDGET,
-  validWorkspace,
-} from '../../src/state/persistence'
+import { loadWorkspace, validWorkspace } from '../../src/state/persistence'
 import { reducer } from '../../src/state/store'
 
 describe('dataset parsing', () => {
@@ -116,31 +111,5 @@ describe('workspace without demo content', () => {
     const removed = reducer(state, { type: 'project/delete', id: project.id })
     expect(removed.datasets[0].projectId).toBeNull()
     expect(validWorkspace(removed)).toBe(true)
-    expect(reducer(state, { type: 'reset' }).datasets).toEqual([])
-  })
-  it('reports quota and size failures instead of throwing', () => {
-    const state = emptyWorkspace()
-    expect(
-      saveWorkspace(
-        {
-          setItem: () => {
-            throw new Error('QuotaExceededError')
-          },
-        },
-        state,
-      ),
-    ).toContain('session-only')
-    let written = false
-    expect(
-      saveWorkspace(
-        {
-          setItem: () => {
-            written = true
-          },
-        },
-        { ...state, displayName: 'x'.repeat(STORAGE_BUDGET) },
-      ),
-    ).toContain('Storage budget')
-    expect(written).toBe(false)
   })
 })

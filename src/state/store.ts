@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react'
-import { emptyWorkspace } from '../data/seed'
 import type { Action, Dataset, Project, Workspace } from './types'
 
 export function reducer(state: Workspace, action: Action): Workspace {
@@ -29,8 +28,6 @@ export function reducer(state: Workspace, action: Action): Workspace {
       }
     case 'profile':
       return { ...state, displayName: action.name }
-    case 'reset':
-      return emptyWorkspace()
   }
 }
 
@@ -42,6 +39,9 @@ export const WorkspaceContext = createContext<{
   assignDataset: (id: string, projectId: string | null) => Promise<void>
   deleteDataset: (id: string) => Promise<void>
   updateName: (name: string) => Promise<void>
+  importLegacy: (
+    workspace: Workspace,
+  ) => Promise<{ projectsImported: number; datasetsImported: number }>
   resetWorkspace: () => Promise<void>
 } | null>(null)
 export function useWorkspace() {

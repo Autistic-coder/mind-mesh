@@ -41,4 +41,3 @@ export type Action =
   | { type: 'dataset/delete'; id: string }
   | { type: 'dataset/assign'; id: string; projectId: string | null }
   | { type: 'profile'; name: string }
-  | { type: 'reset' }

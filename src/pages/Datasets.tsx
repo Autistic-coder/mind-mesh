@@ -309,7 +309,9 @@ export function Datasets() {
           </div>
           <p className="retention-note">
             Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows. The
-            original file is saved to your account.
+            {selected.hasFile
+              ? ' original file is saved to your account.'
+              : ' original file was not part of this browser-only import. Upload it again to retain the complete dataset.'}
           </p>
         </section>
       )}

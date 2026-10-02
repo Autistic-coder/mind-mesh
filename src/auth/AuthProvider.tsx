@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify(body),
     })
-    if (current !== epoch.current) return
+    if (current !== epoch.current) throw new Error('This sign-in attempt was cancelled.')
     setUser(session.user)
     setCsrfToken(session.csrfToken)
     setStatus('authenticated')
@@ -71,8 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     if (!csrfToken) throw new Error('Your session has ended. Refresh the page and try again.')
-    await api<void>('auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } })
-    epoch.current++
+    const current = ++epoch.current
+    setStatus('loading')
+    try {
+      await api<void>('auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } })
+    } catch (error) {
+      if (current === epoch.current) setStatus('authenticated')
+      throw error
+    }
+    if (current !== epoch.current) return
     setUser(null)
     setCsrfToken(null)
     setStatus('anonymous')
@@ -80,12 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function updateDisplayName(name: string) {
     if (!csrfToken) throw new Error('Your session has ended. Refresh the page and try again.')
+    const current = epoch.current
     const updated = await api<Account>('auth/profile', {
       method: 'PATCH',
       headers: { 'X-CSRF-Token': csrfToken },
       body: JSON.stringify({ display_name: name }),
     })
-    setUser(updated)
+    if (current === epoch.current) setUser(updated)
   }
 
   return (

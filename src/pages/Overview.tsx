@@ -1,10 +1,14 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Arrow, Empty } from '../components/UI'
 import { useWorkspace } from '../state/store'
 import { ProjectTable } from './Projects'
 
 export function Overview() {
-  const { state } = useWorkspace()
+  const { state, createProject } = useWorkspace()
+  const [sampleBusy, setSampleBusy] = useState(false)
+  const [sampleError, setSampleError] = useState('')
+  const navigate = useNavigate()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
   return (
@@ -49,8 +53,39 @@ export function Overview() {
           />
         ) : (
           <Empty title="A fresh page for your ideas.">
-            Create a project using New Project above.
+            Create a project using New Project above, or start with your own copy of a sample.
           </Empty>
+        )}
+        {state.projects.length === 0 && (
+          <div className="sample-action">
+            <button
+              className="button"
+              disabled={sampleBusy}
+              onClick={async () => {
+                setSampleBusy(true)
+                setSampleError('')
+                try {
+                  const project = await createProject(
+                    'Sample research',
+                    'A place to explore a question. Add your own CSV or XLSX dataset to begin.',
+                  )
+                  navigate(`/projects/${project.id}`)
+                } catch (issue) {
+                  setSampleError(
+                    issue instanceof Error ? issue.message : 'Unable to load sample project.',
+                  )
+                  setSampleBusy(false)
+                }
+              }}
+            >
+              {sampleBusy ? 'Loading…' : 'Load sample project'} <Arrow diagonal />
+            </button>
+            {sampleError && (
+              <p className="error mt-4" role="alert">
+                {sampleError}
+              </p>
+            )}
+          </div>
         )}
       </section>
     </div>

@@ -189,6 +189,10 @@ main {
   text-transform: uppercase;
   background: transparent;
   color: var(--ink);
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 .button:hover {
   background: #e6e4d9;
@@ -436,13 +440,52 @@ dialog {
   background: var(--paper);
   color: var(--ink);
   margin: auto;
+  overflow: auto;
+}
+dialog[open] {
+  animation: dialog-enter 0.2s ease-out both;
 }
 dialog::backdrop {
   background: #10140ec4;
-  backdrop-filter: blur(3px);
 }
 .dialog-content {
   padding: 32px;
+}
+.settings-section-title {
+  font-size: 29px;
+  margin-bottom: 10px;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sample-action {
+  padding: 0 24px 24px;
+}
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@supports ((-webkit-backdrop-filter: blur(8px)) or (backdrop-filter: blur(8px))) {
+  dialog {
+    background: #f3f0e9ed;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  dialog {
+    background: var(--paper);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .dialog-content h2 {
   font-size: 38px;

@@ -2,7 +2,6 @@ import type { Column, Dataset, Project, Workspace } from './types'
 import { emptyWorkspace } from '../data/seed'
 
 export const STORAGE_KEY = 'mindmesh.workspace.v1'
-export const STORAGE_BUDGET = 3 * 1024 * 1024
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 const string = (value: unknown): value is string => typeof value === 'string'
@@ -139,17 +138,5 @@ export function loadWorkspace(storage: Pick<Storage, 'getItem'>): {
         'Saved workspace could not be read. Reset the local workspace to replace the saved data and enable persistence.',
       blocked: true,
     }
-  }
-}
-
-export function saveWorkspace(storage: Pick<Storage, 'setItem'>, state: Workspace): string {
-  try {
-    const serialized = JSON.stringify(state)
-    if (serialized.length * 2 > STORAGE_BUDGET)
-      return 'Storage budget reached. Current changes are session-only. Remove some imported datasets to save again.'
-    storage.setItem(STORAGE_KEY, serialized)
-    return ''
-  } catch {
-    return 'Browser storage is unavailable or full. Current changes are session-only; they may be lost on refresh.'
   }
 }

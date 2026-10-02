@@ -2,11 +2,12 @@
 
 import json
 import re
+from datetime import datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
@@ -36,6 +37,62 @@ class ProjectChanges(BaseModel):
 class DatasetAssignment(BaseModel):
     model_config = ConfigDict(extra="forbid")
     projectId: str | None
+
+
+class LegacyProject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(max_length=500)
+    updatedAt: datetime
+
+
+class LegacyColumn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=255)
+    type: str = Field(pattern="^(number|category|text)$")
+    missing: int = Field(ge=0, le=20000)
+    uniqueCount: int = Field(ge=0, le=20000)
+    values: list[str] = Field(max_length=30)
+
+
+class LegacyDataset(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=255)
+    projectId: str | None = None
+    columns: list[LegacyColumn] = Field(min_length=1, max_length=100)
+    rowCount: int = Field(ge=1, le=20000)
+    preview: list[list[str | int | float]] = Field(max_length=25)
+    createdAt: datetime
+
+    @model_validator(mode="after")
+    def valid_preview(self):
+        if any(len(row) != len(self.columns) for row in self.preview):
+            raise ValueError("Preview width must match the column count.")
+        if any(len(str(cell)) > 1000 for row in self.preview for cell in row):
+            raise ValueError("Preview cells must be 1,000 characters or fewer.")
+        if any(len(value) > 1000 for column in self.columns for value in column.values):
+            raise ValueError("Column examples must be 1,000 characters or fewer.")
+        return self
+
+
+class LegacyImport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: int = Field(ge=2, le=2)
+    displayName: str = Field(min_length=1, max_length=80)
+    projects: list[LegacyProject] = Field(max_length=200)
+    datasets: list[LegacyDataset] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def valid_links(self):
+        ids = [item.id for item in self.projects]
+        dataset_ids = [item.id for item in self.datasets]
+        if len(ids) != len(set(ids)) or len(dataset_ids) != len(set(dataset_ids)):
+            raise ValueError("Legacy resource IDs must be unique.")
+        if any(item.projectId is not None and item.projectId not in ids for item in self.datasets):
+            raise ValueError("A dataset refers to a missing project.")
+        return self
 
 
 def project_json(project: Project) -> dict:
@@ -92,6 +149,43 @@ def workspace(user: User = Depends(current_user), db: DbSession = Depends(get_db
         "projects": [project_json(item) for item in projects],
         "datasets": [dataset_json(item) for item in datasets],
     }
+
+
+@router.post("/workspace/import", status_code=201)
+def import_legacy_workspace(
+    payload: LegacyImport,
+    session: AccountSession = Depends(require_csrf),
+    db: DbSession = Depends(get_db),
+):
+    """Copy user-selected browser records; original file bytes were never in that format."""
+    project_ids: dict[str, str] = {}
+    for source in payload.projects:
+        project = Project(
+            owner_id=session.user_id,
+            name=source.name.strip(),
+            description=source.description.strip(),
+            updated_at=source.updatedAt,
+        )
+        if not project.name:
+            raise HTTPException(400, "Imported projects need names.")
+        db.add(project)
+        db.flush()
+        project_ids[source.id] = project.id
+    for source in payload.datasets:
+        db.add(
+            Dataset(
+                owner_id=session.user_id,
+                project_id=project_ids.get(source.projectId),
+                name=source.name.strip(),
+                row_count=source.rowCount,
+                columns_json=json.dumps([column.model_dump() for column in source.columns]),
+                preview_json=json.dumps(source.preview),
+                created_at=source.createdAt,
+                stored_name=None,
+            )
+        )
+    db.commit()
+    return {"projectsImported": len(payload.projects), "datasetsImported": len(payload.datasets)}
 
 
 @router.delete("/workspace", status_code=204)

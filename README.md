@@ -39,11 +39,13 @@ To open the app on a phone connected to the same Wi-Fi, set `$env:MINDMESH_ORIGI
 - Import CSV or XLSX files, including a selected worksheet from a multi-sheet workbook.
 - Inspect inferred column types, missing values, row counts, and up to 10 preview rows.
 - Assign datasets to projects, download their original files, or remove them from the account workspace.
-- Change the display name or reset the workspace to empty.
+- Change the display name, reset the workspace to empty, or load an independent sample project.
 
 Imports use a Web Worker with a 20-second timeout. Limits are 5 MB per file, 20,000 data rows, and 100 columns. CSV files must use UTF-8, with non-empty unique headers and consistent row widths.
 
-Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. An explicit import option is being added. Those older records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Current account data is stored in SQLite, and complete uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
+Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. In **Workspace settings → Older browser workspace**, choose **Review browser copy** and confirm to import its personal projects and dataset previews into the current account. **Export browser copy** downloads the original JSON without changing it, including if it cannot be parsed. The import creates new IDs, so each account gets its own copy. Old records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Re-upload an original file if you need its full data in the account. Current account data is stored in SQLite, and complete new uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
+
+The sample project action creates a new account-owned project with guidance text; it contains no dataset. Training, prediction, model, and chat screens are not part of the current active navigation, and no real ML or LLM pipeline is connected.
 
 ## Verify
 

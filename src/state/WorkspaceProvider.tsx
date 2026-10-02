@@ -114,6 +114,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (active.current) dispatch({ type: 'profile', name })
   }
 
+  async function importLegacy(workspace: Workspace) {
+    const result = await request<{ projectsImported: number; datasetsImported: number }>(
+      'workspace/import',
+      { method: 'POST', body: JSON.stringify(workspace) },
+    )
+    const updated = await request<Workspace>('workspace')
+    if (active.current) dispatch({ type: 'workspace/replace', workspace: updated })
+    return result
+  }
+
   async function resetWorkspace() {
     await request<void>('workspace', { method: 'DELETE' })
     if (active.current)
@@ -159,6 +169,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         assignDataset,
         deleteDataset,
         updateName,
+        importLegacy,
         resetWorkspace,
       }}
     >
