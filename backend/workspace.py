@@ -301,7 +301,7 @@ async def upload_dataset(
         while block := await file.read(1024 * 1024):
             chunks.extend(block)
             if len(chunks) > MAX_BYTES:
-                raise HTTPException(400, "Choose a file no larger than 5 MB.")
+                raise HTTPException(400, "Choose a file no larger than 25 MB.")
     finally:
         await file.close()
     summary = inspect_upload(filename, bytes(chunks), sheet_name)
