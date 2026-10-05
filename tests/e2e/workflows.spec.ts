@@ -33,7 +33,7 @@ test('new accounts start empty and navigate between workspace pages', async ({ p
   await page.goto('/')
   await expect(page.getByRole('link', { name: '00 Projects' })).toBeVisible()
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
-  await expect(page.getByRole('navigation').getByRole('link')).toHaveCount(3)
+  await expect(page.getByRole('navigation').getByRole('link')).toHaveCount(4)
   await page.getByRole('navigation').getByRole('link', { name: 'Projects' }).click()
   await expect(page.getByRole('heading', { name: 'Your projects.' })).toBeVisible()
   await page.getByRole('navigation').getByRole('link', { name: 'Datasets' }).click()

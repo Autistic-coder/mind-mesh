@@ -1,8 +1,8 @@
 # MindMesh
 
-A local workspace for organizing projects and inspecting CSV/XLSX datasets. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, and SQLite.
+A local workspace for organizing projects, inspecting CSV/XLSX datasets, and training measured tabular models. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, SQLite, and scikit-learn.
 
-Create an account, then create a project, upload a dataset, preview its columns and rows, and assign it to a project. Projects, dataset records, and complete uploaded files are now stored by the local API under the signed-in account. New accounts start empty.
+Create an account, upload a dataset, configure a classification or regression task, train real models, inspect held-out results, and reuse a private saved pipeline for single or batch predictions. Account data, original files, runs, models, and prediction history persist locally.
 
 ## Run locally
 
@@ -15,7 +15,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-The SQLite database and uploads are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
+The SQLite database, uploads, and fitted model artifacts are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
 
 ```sh
 npm ci
@@ -40,6 +40,8 @@ To open the app on a phone connected to the same Wi-Fi, set `$env:MINDMESH_ORIGI
 - Review a bounded preview before saving, then inspect inferred column types, missing values, row
   counts, file metadata, and the saved preview.
 - Assign datasets to projects, download their original files, or remove them from the account workspace.
+- Train logistic regression, random forest classification, ridge regression, or random forest regression with leakage-safe preparation.
+- Compare held-out metrics, select a persisted model, and make single or batch CSV predictions.
 - Change the display name, reset the workspace to empty, or load an independent sample project.
 
 The browser reads imports in a Web Worker with a 20-second timeout, then the API independently
@@ -51,7 +53,9 @@ cells are rejected; export calculated values before uploading. See
 
 Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. In **Workspace settings → Older browser workspace**, choose **Review browser copy** and confirm to import its personal projects and dataset previews into the current account. **Export browser copy** downloads the original JSON without changing it, including if it cannot be parsed. The import creates new IDs, so each account gets its own copy. Old records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Re-upload an original file if you need its full data in the account. Current account data is stored in SQLite, and complete new uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
 
-The sample project action creates a new account-owned project with guidance text; it contains no dataset. Training, prediction, model, and chat screens are not part of the current active navigation, and no real ML or LLM pipeline is connected.
+The Model Lab includes clearly labeled synthetic churn and rent samples. Loading one creates an independent account-owned dataset through the normal validated upload endpoint. See the [teacher demo guide](docs/demo-guide.md) for the complete presentation flow, sample inputs, metric explanations, restart demonstration, and troubleshooting.
+
+MindMesh does not include an LLM, deployment service, hyperparameter search, causal claims, or a production model monitoring system.
 
 ## Verify
 

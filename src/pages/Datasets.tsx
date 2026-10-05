@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Arrow, Confirm, Empty, Modal, PageTitle } from '../components/UI'
 import { useWorkspace } from '../state/store'
 import type { Dataset } from '../state/types'
@@ -281,6 +281,14 @@ export function Datasets() {
               <h2>{selected.name}</h2>
             </div>
             <div className="flex flex-wrap gap-5">
+              {selected.storageStatus === 'complete' && (
+                <Link
+                  className="text-link"
+                  to={`/model-lab?dataset=${encodeURIComponent(selected.id)}`}
+                >
+                  Train a model
+                </Link>
+              )}
               {selected.hasFile && (
                 <a
                   className="text-link"

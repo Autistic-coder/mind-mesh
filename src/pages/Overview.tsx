@@ -26,6 +26,11 @@ export function Overview() {
           <Link className="button primary mt-6" to="/datasets">
             View datasets <Arrow diagonal />
           </Link>
+          {state.datasets.some((dataset) => dataset.storageStatus === 'complete') && (
+            <Link className="text-link mt-5" to="/model-lab">
+              Open model lab <Arrow />
+            </Link>
+          )}
         </div>
         <div className="overview-counts">
           <Link to="/projects">
