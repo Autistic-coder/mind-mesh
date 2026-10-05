@@ -25,14 +25,14 @@ describe('dataset parsing', () => {
   )
   it('rejects row and column limits', () => {
     expect(() =>
-      summarizeRows('Rows', [['a'], ...Array.from({ length: 20_001 }, () => [1])]),
-    ).toThrow('20,000')
+      summarizeRows('Rows', [['a'], ...Array.from({ length: 200_001 }, () => [1])]),
+    ).toThrow('200,000')
     expect(() =>
       summarizeRows('Columns', [
-        Array.from({ length: 101 }, (_, i) => `c${i}`),
-        Array(101).fill(1),
+        Array.from({ length: 10_001 }, (_, i) => `c${i}`),
+        Array(10_001).fill(1),
       ]),
-    ).toThrow('100 columns')
+    ).toThrow('10,000 columns')
   })
   it('discovers workbook sheets and parses the selected sheet', async () => {
     const workbook = XLSX.utils.book_new()

@@ -698,6 +698,41 @@ dialog::backdrop {
   line-height: 1.8;
   margin-top: 12px;
 }
+.upload-review-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid var(--line);
+}
+.upload-review-summary > div {
+  min-width: 0;
+  padding: 16px 12px 16px 0;
+}
+.upload-review-summary dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.upload-review-summary dd {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  font: 400 20px var(--font-serif);
+}
+.upload-review-table {
+  max-height: 230px;
+}
+.upload-review-table th,
+.upload-review-table td {
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+.upload-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
 .dataset-sections {
   display: grid;
   gap: 42px;
@@ -1172,6 +1207,16 @@ progress::-moz-progress-bar {
   }
   .preview-summary .field {
     width: 100%;
+  }
+  .upload-review-summary {
+    grid-template-columns: 1fr;
+  }
+  .upload-review-summary > div + div {
+    border-top: 1px solid var(--line);
+  }
+  .upload-review-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
   }
 }
 @media (max-width: 1200px) {

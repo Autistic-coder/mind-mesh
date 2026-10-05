@@ -4,6 +4,12 @@ import { Arrow, Confirm, Empty, Modal, PageTitle } from '../components/UI'
 import { useWorkspace } from '../state/store'
 import type { Dataset } from '../state/types'
 
+function fileSize(bytes: number) {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export function Datasets() {
   const { state, uploadDataset, assignDataset, deleteDataset } = useWorkspace()
   const [params, setParams] = useSearchParams()
@@ -11,6 +17,11 @@ export function Datasets() {
   const [busy, setBusy] = useState(false)
   const [sheetOptions, setSheetOptions] = useState<string[]>([])
   const [sheetName, setSheetName] = useState('')
+  const [draft, setDraft] = useState<Dataset | null>(null)
+  const requestedProject = params.get('project')
+  const [draftProjectId, setDraftProjectId] = useState(
+    state.projects.some((project) => project.id === requestedProject) ? requestedProject! : '',
+  )
   const [removing, setRemoving] = useState<Dataset | null>(null)
   const [notice, setNotice] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -29,12 +40,18 @@ export function Datasets() {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
   }
-  function stopImport() {
+  function stopWork() {
     stopWorker()
     uploadController.current?.abort()
     uploadController.current = null
-    fileRef.current = null
     setBusy(false)
+  }
+  function clearDraft() {
+    stopWork()
+    fileRef.current = null
+    setDraft(null)
+    setSheetOptions([])
+    setSheetName('')
   }
   useEffect(
     () => () => {
@@ -46,9 +63,10 @@ export function Datasets() {
   )
 
   function importFile(file: File, sheet?: string) {
-    stopImport()
+    stopWork()
     setError('')
     setNotice('')
+    setDraft(null)
     setBusy(true)
     fileRef.current = file
     const parser = new Worker(new URL('../data/import.worker.ts', import.meta.url), {
@@ -72,26 +90,9 @@ export function Datasets() {
         return
       }
       if (event.data.dataset) {
-        const controller = new AbortController()
-        uploadController.current = controller
-        void uploadDataset(file, sheet, controller.signal)
-          .then((dataset) => {
-            if (controller.signal.aborted) return
-            setParams({ dataset: dataset.id })
-            setSheetOptions([])
-            setNotice(`${dataset.name} imported. Assign it to a project below.`)
-          })
-          .catch((issue) => {
-            if (!controller.signal.aborted)
-              setError(issue instanceof Error ? issue.message : 'Unable to save this dataset.')
-          })
-          .finally(() => {
-            if (uploadController.current === controller) {
-              uploadController.current = null
-              fileRef.current = null
-              setBusy(false)
-            }
-          })
+        setDraft(event.data.dataset)
+        setSheetOptions([])
+        setBusy(false)
       }
     }
     parser.onerror = () => {
@@ -105,6 +106,35 @@ export function Datasets() {
       setError('Parsing took too long. Try a smaller or simpler file.')
     }, 20_000)
     parser.postMessage({ file, sheetName: sheet })
+  }
+
+  async function confirmUpload() {
+    const file = fileRef.current
+    if (!file || !draft || busy) return
+    const controller = new AbortController()
+    uploadController.current = controller
+    setBusy(true)
+    setError('')
+    try {
+      const dataset = await uploadDataset(
+        file,
+        sheetName || undefined,
+        draftProjectId || null,
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
+      clearDraft()
+      setParams({ dataset: dataset.id })
+      setNotice(`${dataset.name} was saved to your private workspace.`)
+    } catch (issue) {
+      if (!controller.signal.aborted)
+        setError(issue instanceof Error ? issue.message : 'Unable to save this dataset.')
+    } finally {
+      if (uploadController.current === controller) {
+        uploadController.current = null
+        setBusy(false)
+      }
+    }
   }
 
   function list() {
@@ -187,9 +217,9 @@ export function Datasets() {
       >
         <div>
           <p className="upload-title">
-            {busy ? 'Reading your dataset…' : 'Drop a little possibility here.'}
+            {busy ? 'Processing your dataset…' : 'Drop a little possibility here.'}
           </p>
-          <p>CSV or XLSX · Up to 5 MB, 20,000 rows, 100 columns</p>
+          <p>CSV or XLSX · Up to 25 MB, 200,000 rows, 10,000 columns</p>
         </div>
         <input
           hidden
@@ -206,8 +236,8 @@ export function Datasets() {
           }}
         />
         {busy ? (
-          <button className="button" onClick={stopImport}>
-            Cancel import
+          <button className="button" onClick={clearDraft}>
+            Cancel
           </button>
         ) : (
           <button className="button" onClick={() => inputRef.current?.click()}>
@@ -218,7 +248,7 @@ export function Datasets() {
       <p className="retention-note">
         Complete files are saved to your account. Previews show up to 25 rows.
       </p>
-      {error && (
+      {error && !draft && sheetOptions.length === 0 && (
         <p className="error my-5" role="alert">
           {error}
         </p>
@@ -324,8 +354,7 @@ export function Datasets() {
         <Modal
           title="Choose a worksheet"
           onClose={() => {
-            stopImport()
-            setSheetOptions([])
+            clearDraft()
           }}
         >
           <p className="muted my-5 text-sm">
@@ -349,8 +378,93 @@ export function Datasets() {
             disabled={busy}
             onClick={() => fileRef.current && importFile(fileRef.current, sheetName)}
           >
-            {busy ? 'Reading…' : 'Import worksheet'}
+            {busy ? 'Reading…' : 'Review worksheet'}
           </button>
+        </Modal>
+      )}
+      {draft && fileRef.current && (
+        <Modal title="Review dataset" onClose={clearDraft}>
+          <p className="muted my-5 text-sm">
+            Check this bounded browser preview before the server validates and saves the complete
+            original file.
+          </p>
+          <dl className="upload-review-summary">
+            <div>
+              <dt>Original file</dt>
+              <dd>{fileRef.current.name}</dd>
+            </div>
+            <div>
+              <dt>Size</dt>
+              <dd>{fileSize(fileRef.current.size)}</dd>
+            </div>
+            {sheetName && (
+              <div>
+                <dt>Worksheet</dt>
+                <dd>{sheetName}</dd>
+              </div>
+            )}
+            <div>
+              <dt>Detected shape</dt>
+              <dd>
+                {draft.rowCount.toLocaleString()} rows · {draft.columns.length.toLocaleString()}{' '}
+                columns
+              </dd>
+            </div>
+          </dl>
+          <label className="field select-field mt-5">
+            <span>Project (optional)</span>
+            <select
+              value={draftProjectId}
+              disabled={busy}
+              onChange={(event) => setDraftProjectId(event.target.value)}
+            >
+              <option value="">Unassigned</option>
+              {state.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="table-wrap upload-review-table mt-6">
+            <table>
+              <thead>
+                <tr>
+                  {draft.columns.map((column) => (
+                    <th key={column.name}>{column.name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {draft.preview.slice(0, 5).map((row, index) => (
+                  <tr key={index}>
+                    {row.map((value, cellIndex) => (
+                      <td key={cellIndex}>
+                        {value === '' ? <span className="muted">—</span> : value}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="retention-note">
+            Previewing {Math.min(5, draft.preview.length)} rows. The backend will calculate and
+            store the authoritative summary from the complete selected dataset.
+          </p>
+          {error && (
+            <p className="error mt-5" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="upload-review-actions">
+            <button className="button" disabled={busy} onClick={clearDraft}>
+              Cancel
+            </button>
+            <button className="button primary" disabled={busy} onClick={confirmUpload}>
+              {busy ? 'Uploading and processing…' : 'Save dataset'}
+            </button>
+          </div>
         </Modal>
       )}
       {removing && (

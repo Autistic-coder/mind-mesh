@@ -14,12 +14,16 @@ test.beforeEach(async ({ page }) => {
   expect(response.status()).toBe(201)
 })
 
-async function uploadCsv(page: Page, name = 'Research.csv') {
+async function uploadCsv(page: Page, name = 'Research.csv', project?: string) {
   await page.getByLabel('Upload dataset').setInputFiles({
     name,
     mimeType: 'text/csv',
     buffer: Buffer.from('age,income,outcome\n25,40000,Yes\n40,75000,No'),
   })
+  const review = page.getByRole('dialog', { name: 'Review dataset' })
+  await expect(review).toContainText('2 rows · 3 columns')
+  if (project) await review.getByLabel('Project (optional)').selectOption({ label: project })
+  await review.getByRole('button', { name: 'Save dataset' }).click()
   await expect(
     page.getByRole('heading', { name: name.replace('.csv', ''), exact: true }),
   ).toBeVisible()
@@ -55,9 +59,10 @@ test('creates a project, imports data, assigns it, and retains it after refresh'
   await page.getByLabel('Description').fill('Browser acceptance test')
   await page.getByRole('button', { name: 'Create project' }).click()
   await expect(page.getByRole('heading', { name: 'Research project', exact: true })).toBeVisible()
-  await page.getByRole('navigation').getByRole('link', { name: 'Datasets' }).click()
+  await page.getByRole('link', { name: 'Add or manage datasets' }).click()
+  await expect(page).toHaveURL(/\/datasets\?project=/)
   await uploadCsv(page)
-  await page.getByLabel('Assign to project').selectOption({ label: 'Research project' })
+  await expect(page.getByLabel('Assign to project')).toHaveValue(/.+/)
   await expect(page.getByRole('cell', { name: '40000', exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('Assign to project')).toHaveValue(/.+/)
@@ -91,7 +96,10 @@ test('imports a selected workbook sheet and reports invalid files', async ({ pag
     buffer: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
   })
   await page.getByRole('combobox', { name: 'Worksheet' }).selectOption('Rent')
-  await page.getByRole('button', { name: 'Import worksheet' }).click()
+  await page.getByRole('button', { name: 'Review worksheet' }).click()
+  const review = page.getByRole('dialog', { name: 'Review dataset' })
+  await expect(review.getByText('Rent', { exact: true })).toBeVisible()
+  await review.getByRole('button', { name: 'Save dataset' }).click()
   await expect(page.getByRole('cell', { name: '1200', exact: true })).toBeVisible()
   await page.getByLabel('Upload dataset').setInputFiles({
     name: 'bad.csv',
@@ -114,6 +122,39 @@ test('removes a dataset and resets to an empty account workspace', async ({ page
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('link', { name: '00 Datasets' })).toBeVisible()
+})
+
+test('cancels a reviewed upload without saving and can retry', async ({ page }) => {
+  await page.goto('/datasets')
+  await page.getByLabel('Upload dataset').setInputFiles({
+    name: 'Draft.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('x,y\n1,2'),
+  })
+  const review = page.getByRole('dialog', { name: 'Review dataset' })
+  await review.getByRole('button', { name: 'Cancel' }).click()
+  await expect(review).toHaveCount(0)
+  await expect(page.getByText('Draft', { exact: true })).toHaveCount(0)
+  await uploadCsv(page, 'Retry.csv')
+  await expect(page.getByRole('heading', { name: 'Retry', exact: true })).toBeVisible()
+})
+
+test('keeps a reviewed file available after a temporary save failure', async ({ page }) => {
+  await page.goto('/datasets')
+  await page.getByLabel('Upload dataset').setInputFiles({
+    name: 'Resilient.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('x,y\n1,2'),
+  })
+  const review = page.getByRole('dialog', { name: 'Review dataset' })
+  await page.route('**/api/datasets', async (route) => {
+    await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+  })
+  await review.getByRole('button', { name: 'Save dataset' }).click()
+  await expect(review.getByRole('alert')).toContainText('temporarily unavailable')
+  await page.unroute('**/api/datasets')
+  await review.getByRole('button', { name: 'Save dataset' }).click()
+  await expect(page.getByRole('heading', { name: 'Resilient', exact: true })).toBeVisible()
 })
 
 test('does not attach old anonymous content to a signed-in account', async ({ page }) => {
@@ -181,4 +222,11 @@ test('mobile layout and project dialog are usable', async ({ page }) => {
   await expect(page.getByLabel('Project name', { exact: true })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByLabel('Upload dataset').setInputFiles({
+    name: 'Mobile.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('x,y\n1,2'),
+  })
+  await expect(page.getByRole('dialog', { name: 'Review dataset' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

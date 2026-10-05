@@ -35,7 +35,12 @@ export const WorkspaceContext = createContext<{
   state: Workspace
   createProject: (name: string, description: string) => Promise<Project>
   deleteProject: (id: string) => Promise<void>
-  uploadDataset: (file: File, sheetName?: string, signal?: AbortSignal) => Promise<Dataset>
+  uploadDataset: (
+    file: File,
+    sheetName?: string,
+    projectId?: string | null,
+    signal?: AbortSignal,
+  ) => Promise<Dataset>
   assignDataset: (id: string, projectId: string | null) => Promise<void>
   deleteDataset: (id: string) => Promise<void>
   updateName: (name: string) => Promise<void>

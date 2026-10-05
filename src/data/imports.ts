@@ -41,9 +41,11 @@ export async function parseWorkbook(
     throw new Error('This worksheet is empty. Choose a sheet containing a header and data.')
   const bounds = XLSX.utils.decode_range(range)
   if (bounds.e.r - bounds.s.r > LIMITS.rows)
-    throw new Error('Use a dataset with 20,000 rows or fewer.')
+    throw new Error('Use a dataset with 200,000 rows or fewer.')
   if (bounds.e.c - bounds.s.c + 1 > LIMITS.columns)
-    throw new Error('Use a dataset with 100 columns or fewer.')
+    throw new Error('Use a dataset with 10,000 columns or fewer.')
+  if ((bounds.e.r - bounds.s.r + 1) * (bounds.e.c - bounds.s.c + 1) > LIMITS.cells)
+    throw new Error('This worksheet has too many cells to review safely.')
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: '',

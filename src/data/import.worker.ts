@@ -5,7 +5,7 @@ import { LIMITS } from './datasets'
 self.onmessage = async (event: MessageEvent<{ file: File; sheetName?: string }>) => {
   const { file, sheetName } = event.data
   try {
-    if (file.size > LIMITS.bytes) throw new Error('Choose a file smaller than 5 MB.')
+    if (file.size > LIMITS.bytes) throw new Error('Choose a file no larger than 25 MB.')
     if (!file.size) throw new Error('This file is empty. Choose a file with headers and data.')
     const name = file.name.replace(/\.(csv|xlsx)$/i, '')
     if (/\.csv$/i.test(file.name)) {

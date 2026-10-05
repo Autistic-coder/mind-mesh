@@ -111,8 +111,8 @@ export function ProjectDetails() {
             <h2>
               Datasets <span className="count-inline">{datasets.length}</span>
             </h2>
-            <Link className="text-link" to="/datasets">
-              Manage datasets <Arrow />
+            <Link className="text-link" to={`/datasets?project=${encodeURIComponent(project.id)}`}>
+              Add or manage datasets <Arrow />
             </Link>
           </div>
           {datasets.length ? (
@@ -130,8 +130,12 @@ export function ProjectDetails() {
               ))}
             </div>
           ) : (
-            <Empty title="Add data to this project." to="/datasets" action="View datasets">
-              Upload a CSV or XLSX file, then assign it to this project.
+            <Empty
+              title="Add data to this project."
+              to={`/datasets?project=${encodeURIComponent(project.id)}`}
+              action="Choose a dataset"
+            >
+              Upload a CSV or XLSX file with this project already selected.
             </Empty>
           )}
         </section>
