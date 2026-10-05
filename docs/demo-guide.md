@@ -134,7 +134,7 @@ repeats. It shows predictive sensitivity, not causation.
 
 ## 8. Save and reopen the chosen model
 
-Choose **Select and save model** on one completed result. MindMesh stores the fitted preparation and
+Choose **Use this model** on one completed result. MindMesh stores the fitted preparation and
 estimator under a private server-generated filename. Refresh the browser or restart both services,
 open **Model lab → Results**, and choose the run under **Saved runs**. Its measured results and
 selected model reappear.

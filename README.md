@@ -1,61 +1,92 @@
 # MindMesh
 
-A local workspace for organizing projects, inspecting CSV/XLSX datasets, and training measured tabular models. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, SQLite, and scikit-learn.
+MindMesh is a private workspace for organizing projects, inspecting CSV/XLSX datasets, and training
+measured tabular models. It uses React, TypeScript, Vite, FastAPI, SQLAlchemy, Supabase PostgreSQL,
+and scikit-learn.
 
-Create an account, upload a dataset, configure a classification or regression task, train real models, inspect hel newer and Python 3.11 or newer. In PowerShell, start the API in one terminal:
+Create an account, upload a dataset, choose a classification or regression task, compare real
+models on held-out rows, and reuse a saved pipeline for single or batch predictions. Accounts and
+workspace records persist in PostgreSQL. Original datasets and fitted model files remain in private
+server directories and are served only through ownership-checked API endpoints.
+
+## Run locally
+
+Requirements:
+
+- Node.js 22.12 or newer
+- Python 3.11 or newer
+- A Supabase PostgreSQL project
+
+Copy `backend/.env.example` to `.env`. In Supabase Dashboard, open **Connect** and copy the exact
+direct connection or Session pooler URI into `MINDMESH_DATABASE_URL`. Keep the URI only in `.env`.
+Use the Session pooler when the machine cannot connect over IPv6. Do not use a transaction pooler
+for migrations.
+
+Start the API in the first PowerShell terminal:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
-.\.venv\Scripts\alembic.exe upgrade head
+.\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-The SQLite database, uploads, and fitted model artifacts are kept under the ignored `var/` directory. See `backend/.env.example` for optional local configuration. In another terminal, start the frontend:
+Start the frontend in a second terminal:
 
-```sh
+```powershell
 npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. Vite proxies `/api` to the local backend so the browser uses one origin. Stop each server with Ctrl+C.
+Open **http://127.0.0.1:5173**. Vite proxies `/api` to the backend, so browser cookies and CSRF
+requests remain on one origin. Stop either process with Ctrl+C.
 
-On the original Windows workspace, Node.js is available in `.local`. PowerShell can use its `npm.cmd` launcher without changing the script execution policy:
+This repository includes a local Node.js installation for its original Windows workspace. Use it
+when `npm` is not on `PATH`:
 
 ```powershell
 $env:PATH = "$(Get-Location)\.local\node-v24.21.0-win-x64;$env:PATH"
 npm.cmd run dev
 ```
 
-that URL on the phone. Keep both terminals running.
+See [Supabase setup and SQLite cutover](docs/supabase.md) before moving existing local records.
 
-## Features#####ydfugieurghfisu
+## What is stored where
 
-- Create and delete projects. Deleting a project leaves its datasets in the workspace, unassigned.
-- Import CSV or XLSX files, including a selected worksheet from a multi-sheet workbook.
-- Review a bounded preview before saving, then inspect inferred column types, missing values, row
-  counts, file metadata, and the saved preview.
-- Assign datasets to projects, download their original files, or remove them from the account workspace.
-- Train logistic regression, random forest classification, ridge regression, or random forest regression with leakage-safe preparation.
-- Compare held-out metrics, select a persisted model, and make single or batch CSV predictions.
-- Change the display name, reset the workspace to empty, or load an independent sample project.
+- Supabase PostgreSQL stores users, opaque session hashes, projects, dataset metadata, training
+  configurations and runs, model metadata, prediction history, conversations, and shared rate
+  limits in the private `mindmesh` schema.
+- `var/uploads` stores complete uploaded datasets under server-generated names.
+- `var/models` stores fitted joblib pipelines under server-generated names.
+- The browser never receives a database password and never connects to Supabase directly.
 
-The browser reads imports in a Web Worker with a 20-second timeout, then the API independently
-parses the selected data before saving it. Limits are 25 MB per file, 200,000 data rows, 10,000
-columns, and 10,000,000 cells. XLSX archives may expand to at most 160 MB. CSV files must use
-UTF-8, with non-empty unique headers and consistent row widths. Spreadsheet formulas and error
-cells are rejected; export calculated values before uploading. See
-[Dataset workflow](docs/dataset-workflow.md) for the validation, storage, and recovery rules.
+The `mindmesh` schema is outside Supabase's default Data API exposure. Migrations revoke access from
+`PUBLIC`, `anon`, and `authenticated`; the FastAPI server remains the authorization boundary. Every
+private query also constrains records by the account ID derived from its server session.
 
-Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. In **Workspace settings → Older browser workspace**, choose **Review browser copy** and confirm to import its personal projects and dataset previews into the current account. **Export browser copy** downloads the original JSON without changing it, including if it cannot be parsed. The import creates new IDs, so each account gets its own copy. Old records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Re-upload an original file if you need its full data in the account. Current account data is stored in SQLite, and complete new uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
+Older browser-only workspaces stay untouched in `localStorage` under `mindmesh.workspace.v1`. In
+**Workspace settings → Older browser workspace**, the signed-in user may explicitly review and
+import a copy or export the original JSON. MindMesh never silently attaches this data to an account.
 
-The Model Lab includes clearly labeled synthetic churn and rent samples. Loading one creates an independent account-owned dataset through the normal validated upload endpoint. See the [teacher demo guide](docs/demo-guide.md) for the complete presentation flow, sample inputs, metric explanations, restart demonstration, and troubleshooting.
+## Model workflow
 
-MindMesh does not include an LLM, deployment service, hyperparameter search, causal claims, or a production model monitoring system.
+- Create projects and privately upload CSV or XLSX files.
+- Review a bounded preview before saving the complete file.
+- Choose the answer column, usable input columns, model type, and held-out split in the six-step
+  Model Lab wizard.
+- Train logistic regression, random forest classification, ridge regression, or random forest
+  regression with preparation fitted only on training rows.
+- Compare held-out metrics, choose a persisted model, and make single or batch CSV predictions.
+- Load either synthetic sample as an independent account-owned copy.
+
+Dataset limits and recovery behavior are documented in [Dataset workflow](docs/dataset-workflow.md).
+The [teacher demo guide](docs/demo-guide.md) covers the presentation flow and example inputs.
 
 ## Verify
 
-```sh
+Frontend checks:
+
+```powershell
 npm run lint
 npm test
 npm run build
@@ -64,12 +95,17 @@ npm run test:e2e
 npm run format:check
 ```
 
-Run the build before browser tests. In the original Windows workspace, set `$env:PLAYWRIGHT_BROWSERS_PATH = "$(Get-Location)\.local\browsers"` before `npm.cmd run test:e2e` to reuse the installed browser.
-
-Backend checks can be run with:
+Backend checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend\tests -q
 .\.venv\Scripts\python.exe -m ruff check backend
-.\.venv\Scripts\python.exe -m ruff format --check backend\dataset_files.py backend\workspace.py backend\tests
+.\.venv\Scripts\python.exe -m ruff format --check backend
 ```
+
+Set `MINDMESH_TEST_POSTGRES_URL` to a disposable PostgreSQL database before the backend test command
+to include destructive PostgreSQL migration and concurrency checks. Without it, those tests are
+reported as skipped rather than being simulated with SQLite.
+
+MindMesh does not include Supabase Auth, Supabase Storage, direct browser database access, an LLM,
+hyperparameter search, causal analysis, deployment, or production model monitoring.

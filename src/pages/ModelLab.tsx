@@ -8,6 +8,7 @@ import type {
   ModelResult,
   PredictionHistory,
   RunConfig,
+  SchemaColumn,
   SavedModel,
   Task,
   TrainingRun,
@@ -22,25 +23,42 @@ const STEPS = [
   'Results',
   'Predictions',
 ]
+const TASK_OPTIONS: Record<Task, { label: string; summary: string; description: string }> = {
+  classification: {
+    label: 'Classification — predict a category',
+    summary: 'The result is a group or label.',
+    description:
+      'Choose this when the answer is a group or label, such as whether a customer will leave: Yes or No.',
+  },
+  regression: {
+    label: 'Regression — predict a number',
+    summary: 'The result is a numeric value.',
+    description: 'Choose this when the answer is a number, such as monthly rent, price, or sales.',
+  },
+}
 const ALGORITHMS = {
   classification: [
-    ['logistic_regression', 'Logistic regression', 'A simple baseline for classification.'],
+    [
+      'logistic_regression',
+      'Logistic regression',
+      'A simple model that predicts categories from patterns in the input columns.',
+    ],
     [
       'random_forest_classifier',
       'Random forest classifier',
-      'Combines decision trees to learn more complex patterns.',
+      'Combines many decision trees to predict a category.',
     ],
   ],
   regression: [
     [
       'ridge_regression',
       'Ridge regression',
-      'A regularized linear baseline for numeric predictions.',
+      'Predicts a number using a regularized linear relationship between inputs and the answer.',
     ],
     [
       'random_forest_regressor',
       'Random forest regressor',
-      'Combines decision trees for numeric predictions.',
+      'Combines many decision trees to predict a number.',
     ],
   ],
 } as const
@@ -50,6 +68,27 @@ const LABELS: Record<string, string> = {
   random_forest_classifier: 'Random forest classifier',
   ridge_regression: 'Ridge regression',
   random_forest_regressor: 'Random forest regressor',
+}
+
+const METRIC_HELP: Record<string, string> = {
+  accuracy: 'How often the predicted answer was correct.',
+  precisionMacro: 'When the model predicts a category, how often it is right.',
+  recallMacro: 'How many actual examples of a category the model finds.',
+  f1Macro: 'A combined measure of precision and recall.',
+  baselineAccuracy: 'The accuracy from always choosing the most common answer.',
+  mae: 'The average size of the prediction error.',
+  rmse: 'An error measure that gives more weight to large mistakes.',
+  r2: 'Compares prediction error with a constant-mean reference. Higher is generally better; it can be negative.',
+  baselineMae: 'The average error from always predicting the training-row mean.',
+}
+
+function unavailableFeatureReason(column: SchemaColumn, rowCount: number) {
+  if (column.missing === rowCount) return 'Every row is empty, so there is nothing to learn from.'
+  if (column.uniqueCount <= 1)
+    return 'This column has the same value in every row, so it cannot help distinguish outcomes.'
+  if (!['number', 'category', 'boolean'].includes(column.type))
+    return `This ${column.type} column cannot be used directly. Convert it to numbers or categories and upload it again.`
+  return ''
 }
 
 function displayMetric(name: string) {
@@ -185,8 +224,7 @@ export function ModelLab() {
             next.columns
               .filter(
                 (column) =>
-                  column.name !== defaultTarget &&
-                  ['number', 'category', 'boolean'].includes(column.type),
+                  column.name !== defaultTarget && !unavailableFeatureReason(column, next.rowCount),
               )
               .slice(0, 12)
               .map((column) => column.name),
@@ -259,13 +297,6 @@ export function ModelLab() {
     configurationChanged()
     setTask(next)
     setAlgorithms(ALGORITHMS[next].map((item) => item[0]))
-    if (next === 'regression' && schema) {
-      const numeric = schema.columns.find((column) => column.type === 'number')
-      if (numeric) {
-        setTarget(numeric.name)
-        setFeatures((current) => current.filter((name) => name !== numeric.name))
-      }
-    }
   }
 
   async function loadSample(filename: string) {
@@ -289,6 +320,13 @@ export function ModelLab() {
   async function startTraining() {
     if (!datasetId || !target || !features.length || !algorithms.length) {
       setError('Choose a dataset, target, at least one feature, and at least one algorithm.')
+      return
+    }
+    if (
+      task === 'regression' &&
+      schema?.columns.find((column) => column.name === target)?.type !== 'number'
+    ) {
+      setError('Regression needs an answer column containing numbers. Choose a numeric column.')
       return
     }
     setBusy('training')
@@ -418,8 +456,9 @@ export function ModelLab() {
   }
 
   const supportedFeatures = schema?.columns.filter(
-    (column) => column.name !== target && ['number', 'category', 'boolean'].includes(column.type),
+    (column) => column.name !== target && !unavailableFeatureReason(column, schema.rowCount),
   )
+  const selectedTarget = schema?.columns.find((column) => column.name === target)
   const runModels = selectedRun?.result?.models ?? []
 
   return (
@@ -540,32 +579,30 @@ export function ModelLab() {
           <>
             <h2 id="lab-step-1">Choose the question and answer.</h2>
             <p className="lab-help">
-              The target is the answer the model learns from existing rows.
+              First choose the kind of result you need. Your choice controls which models MindMesh
+              can train.
             </p>
             <div className="choice-grid">
-              <label className={task === 'classification' ? 'choice active' : 'choice'}>
-                <input
-                  type="radio"
-                  name="task"
-                  checked={task === 'classification'}
-                  onChange={() => chooseTask('classification')}
-                />
-                <strong>Classification</strong>
-                <span>Predict a category, such as churn: yes or no.</span>
-              </label>
-              <label className={task === 'regression' ? 'choice active' : 'choice'}>
-                <input
-                  type="radio"
-                  name="task"
-                  checked={task === 'regression'}
-                  onChange={() => chooseTask('regression')}
-                />
-                <strong>Regression</strong>
-                <span>Predict a number, such as price or rent.</span>
-              </label>
+              {(Object.entries(TASK_OPTIONS) as Array<[Task, (typeof TASK_OPTIONS)[Task]]>).map(
+                ([value, option]) => (
+                  <label key={value} className={task === value ? 'choice active' : 'choice'}>
+                    <input
+                      type="radio"
+                      name="task"
+                      checked={task === value}
+                      onChange={() => chooseTask(value)}
+                    />
+                    <strong>{option.label}</strong>
+                    <span>{option.description}</span>
+                  </label>
+                ),
+              )}
             </div>
+            <p className="inline-explanation" aria-live="polite">
+              <strong>{TASK_OPTIONS[task].label}.</strong> {TASK_OPTIONS[task].summary}
+            </p>
             <label className="field select-field lab-field">
-              <span>Target column</span>
+              <span>What do you want to predict?</span>
               <select
                 value={target}
                 onChange={(event) => {
@@ -581,11 +618,19 @@ export function ModelLab() {
                   </option>
                 ))}
               </select>
+              <small className="field-help">
+                Choose the column containing the answers your model should learn.
+              </small>
             </label>
+            {task === 'regression' && target && selectedTarget?.type !== 'number' && (
+              <p className="error" role="alert">
+                Regression predicts a number. Choose an answer column marked as a number.
+              </p>
+            )}
             {target && (
               <p className="inline-explanation">
-                MindMesh will omit rows with a missing <strong>{target}</strong> answer and report
-                the exact count. It never invents target answers.
+                Rows without an answer in <strong>{target}</strong> are left out of training. The
+                result reports the exact number left out.
               </p>
             )}
           </>
@@ -593,16 +638,17 @@ export function ModelLab() {
 
         {step === 2 && (
           <>
-            <h2 id="lab-step-2">Choose information the model may use.</h2>
+            <h2 id="lab-step-2">Which information should the model use?</h2>
             <p className="lab-help">
-              Features are the inputs used to predict the target. Exclude IDs, free text, dates, and
-              anything unavailable when predicting.
+              Choose the columns available when making a new prediction. Leave out the answer column
+              and identifiers such as customer IDs. These input columns are also called features.
             </p>
             <div className="feature-list">
               {schema?.columns
                 .filter((column) => column.name !== target)
                 .map((column) => {
-                  const supported = ['number', 'category', 'boolean'].includes(column.type)
+                  const unavailable = unavailableFeatureReason(column, schema.rowCount)
+                  const supported = !unavailable
                   return (
                     <label
                       key={column.name}
@@ -626,6 +672,7 @@ export function ModelLab() {
                         <small>
                           {column.type} · {column.missing.toLocaleString()} missing
                         </small>
+                        {unavailable && <em>{unavailable}</em>}
                         {column.warnings.map((warning) => (
                           <em key={warning}>{warning}</em>
                         ))}
@@ -643,9 +690,10 @@ export function ModelLab() {
             <div className="preparation-note">
               <strong>Safe missing-value defaults</strong>
               <p>
-                Numeric gaps use the training-data median. Categorical gaps use the most frequent
-                training value. Categories are one-hot encoded, and unseen future categories remain
-                valid. Every fitted preparation step sees training rows only.
+                Empty number fields use a typical value learned from the training rows. Empty
+                category fields use the most frequent training value. Technically, MindMesh uses
+                median and most-frequent imputation fitted only on training rows. New categories are
+                still accepted.
               </p>
             </div>
           </>
@@ -655,8 +703,7 @@ export function ModelLab() {
           <>
             <h2 id="lab-step-3">Train one model or compare two.</h2>
             <p className="lab-help">
-              Both algorithms use the same reproducible split so their held-out results are
-              comparable.
+              Select either model, or train both models on the same split to compare their results.
             </p>
             <div className="algorithm-list">
               {ALGORITHMS[task].map(([value, label, description]) => (
@@ -697,9 +744,10 @@ export function ModelLab() {
               </select>
             </label>
             <p className="inline-explanation">
-              The model learns from training rows. Held-out rows measure predictions it did not fit.
-              Repeatedly choosing models using this split means it is not an independent final
-              assessment.
+              The model learns from {Math.round((1 - testSize) * 100)}% of the rows. The remaining{' '}
+              {Math.round(testSize * 100)}% checks how well it predicts answers it has not learned
+              from. This is the train/test split. Repeated model choices on the same test rows are
+              not an independent final assessment.
             </p>
             <details className="advanced-settings">
               <summary>Advanced settings</summary>
@@ -716,14 +764,17 @@ export function ModelLab() {
                   }}
                 />
               </label>
-              <p>Keeping this fixed reproduces the same train/test split.</p>
+              <p>
+                Keeps the random split repeatable. Leave the default unless you need a different
+                split.
+              </p>
             </details>
             <button
               className="button primary mt-6"
               disabled={busy === 'training' || !algorithms.length}
               onClick={() => void startTraining()}
             >
-              {busy === 'training' ? 'Starting…' : 'Start real training'} <Arrow diagonal />
+              {busy === 'training' ? 'Starting…' : 'Start training'} <Arrow diagonal />
             </button>
           </>
         )}
@@ -731,6 +782,10 @@ export function ModelLab() {
         {step === 4 && (
           <>
             <h2 id="lab-step-4">Measured results.</h2>
+            <p className="lab-help">
+              Compare results measured on rows the models did not learn from, then choose one fitted
+              model to use for predictions.
+            </p>
             {selectedRun && ['queued', 'running'].includes(selectedRun.status) && (
               <div className="training-state" role="status">
                 <span className="status-dot" />{' '}
@@ -795,6 +850,7 @@ export function ModelLab() {
                 <div className="prediction-grid">
                   <div>
                     <h3>Single record</h3>
+                    <p>Enter one example to get one predicted answer from the selected model.</p>
                     {selectedModel.features.map((feature) => {
                       const numeric = selectedModel.numericFeatures.includes(feature)
                       const column = schema?.columns.find((item) => item.name === feature)
@@ -831,7 +887,7 @@ export function ModelLab() {
                       disabled={busy === 'predict'}
                       onClick={() => void predictSingle()}
                     >
-                      {busy === 'predict' ? 'Predicting…' : 'Predict'} <Arrow />
+                      {busy === 'predict' ? 'Predicting…' : 'Predict one example'} <Arrow />
                     </button>
                     {prediction && (
                       <div className="prediction-answer" role="status">
@@ -842,7 +898,7 @@ export function ModelLab() {
                             {Object.entries(prediction.probabilities as Record<string, number>).map(
                               ([label, value]) => (
                                 <span key={label}>
-                                  {label}: {(value * 100).toFixed(1)}% estimated probability
+                                  {label}: {(value * 100).toFixed(1)}% model estimated probability
                                 </span>
                               ),
                             )}
@@ -854,8 +910,9 @@ export function ModelLab() {
                   <div>
                     <h3>Batch CSV</h3>
                     <p>
-                      Include these columns: <strong>{selectedModel.features.join(', ')}</strong>.
-                      Extra columns are retained and row order is preserved.
+                      Upload a CSV to predict many examples at once. Include these columns:{' '}
+                      <strong>{selectedModel.features.join(', ')}</strong>. Extra columns are kept,
+                      and the result downloads in the original row order.
                     </p>
                     <label className="field lab-field">
                       <span>Batch CSV</span>
@@ -870,7 +927,7 @@ export function ModelLab() {
                       disabled={!batchFile || busy === 'batch'}
                       onClick={() => void predictBatch()}
                     >
-                      {busy === 'batch' ? 'Predicting…' : 'Predict and download CSV'}
+                      {busy === 'batch' ? 'Predicting…' : 'Predict from a CSV'}
                     </button>
                     <p className="mt-5">
                       <a
@@ -942,6 +999,10 @@ function RunLibrary({
         <h3>Saved runs</h3>
         <span className="badge">Persistent</span>
       </div>
+      <p className="section-help">
+        A saved run keeps its dataset choice, preparation settings, measured results, and fitted
+        model references so you can reopen it later.
+      </p>
       {runs.map((run) => (
         <button key={run.id} onClick={() => onOpen(run)}>
           <span>
@@ -984,9 +1045,15 @@ function ResultCard({
           <div key={name}>
             <span>{displayMetric(name)}</span>
             <strong>{metricValue(name, value)}</strong>
+            {METRIC_HELP[name] && <small>{METRIC_HELP[name]}</small>}
           </div>
         ))}
       </div>
+      {result.averaging === 'macro' && (
+        <p className="retention-note">
+          Macro averaging gives each category equal weight in precision, recall, and F1.
+        </p>
+      )}
       <p className="retention-note">
         {result.trainRows.toLocaleString()} training rows · {result.testRows.toLocaleString()}{' '}
         held-out rows · {result.targetRowsOmitted.toLocaleString()} rows omitted for missing targets
@@ -1033,7 +1100,10 @@ function ResultCard({
       )}
       <div className="compact-result">
         <strong>Feature importance</strong>
-        <p className="muted">{result.importanceMethod}</p>
+        <p className="muted">
+          Shows how strongly each input influenced this model’s held-out predictions. It does not
+          prove that an input caused the answer. {result.importanceMethod}
+        </p>
         {result.featureImportance.map((item) => (
           <div className="importance" key={item.feature}>
             <span>
@@ -1044,7 +1114,7 @@ function ResultCard({
         ))}
       </div>
       <button className="button" disabled={busy || selected} onClick={onSelect}>
-        {selected ? 'Saved for predictions' : 'Select and save model'}
+        {selected ? 'Selected for predictions' : 'Use this model'}
       </button>
     </article>
   )

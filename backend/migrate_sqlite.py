@@ -96,6 +96,18 @@ def migrate(source_path: Path, target_url: str, *, dry_run: bool = False) -> dic
                         target_meta.tables["sessions"].c.user_id.in_(user_ids)
                     )
                 )
+            for name in TABLES:
+                destination = target_meta.tables[name]
+                source_ids = [row["id"] for row in rows_by_table[name]]
+                if not source_ids:
+                    continue
+                found = set(
+                    target_connection.scalars(
+                        select(destination.c.id).where(destination.c.id.in_(source_ids))
+                    )
+                )
+                if found != set(source_ids):
+                    raise RuntimeError(f"Verification failed after importing {name}.")
             if dry_run:
                 target_connection.rollback()
         return {name: copied[name] + skipped[name] for name in TABLES}

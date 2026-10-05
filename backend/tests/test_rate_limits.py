@@ -1,5 +1,10 @@
 """Expensive account operations use configurable database-backed limits."""
 
+import pytest
+from fastapi import HTTPException
+
+from backend import rate_limits
+
 
 def _account(client):
     response = client.post(
@@ -60,3 +65,18 @@ def test_expensive_routes_limit_before_repeating_work(api, monkeypatch):
         ).status_code
         == 429
     )
+
+
+def test_user_limits_are_independent_and_reset_in_a_new_window(api, monkeypatch):
+    _client, _engine, _tmp_path = api
+    now = 2_000_000_000
+    monkeypatch.setattr(rate_limits.time, "time", lambda: now)
+    rate_limits.enforce("independent-users", "user-a", 1, 60)
+    rate_limits.enforce("independent-users", "user-b", 1, 60)
+    with pytest.raises(HTTPException) as limited:
+        rate_limits.enforce("independent-users", "user-a", 1, 60)
+    assert limited.value.status_code == 429
+    assert 1 <= int(limited.value.headers["Retry-After"]) <= 60
+
+    monkeypatch.setattr(rate_limits.time, "time", lambda: now + 60)
+    rate_limits.enforce("independent-users", "user-a", 1, 60)

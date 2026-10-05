@@ -41,7 +41,7 @@ def make_engine(database_url: str | None = None) -> Engine:
         return engine
     if backend != "postgresql":
         raise RuntimeError("MINDMESH_DATABASE_URL must use PostgreSQL.")
-    return create_engine(
+    engine = create_engine(
         url,
         pool_pre_ping=True,
         pool_size=settings.pool_size,
@@ -50,6 +50,20 @@ def make_engine(database_url: str | None = None) -> Engine:
         pool_recycle=300,
         connect_args={"connect_timeout": 10, "options": "-csearch_path=mindmesh,public"},
     )
+
+    @event.listens_for(engine, "connect")
+    def set_private_search_path(connection, _record):
+        # Supabase's Session pooler may ignore startup `options`. SET SESSION in
+        # autocommit mode makes the schema selection survive SQLAlchemy rollbacks.
+        previous_autocommit = connection.autocommit
+        connection.autocommit = True
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SET SESSION search_path TO mindmesh, public")
+        finally:
+            connection.autocommit = previous_autocommit
+
+    return engine
 
 
 def get_engine() -> Engine:
