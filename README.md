@@ -2,11 +2,7 @@
 
 A local workspace for organizing projects, inspecting CSV/XLSX datasets, and training measured tabular models. Built with React, TypeScript, Vite, Tailwind CSS, FastAPI, SQLite, and scikit-learn.
 
-Create an account, upload a dataset, configure a classification or regression task, train real models, inspect held-out results, and reuse a private saved pipeline for single or batch predictions. Account data, original files, runs, models, and prediction history persist locally.
-
-## Run locally
-
-Requires Node.js 22.12 or newer and Python 3.11 or newer. In PowerShell, start the API in one terminal:
+Create an account, upload a dataset, configure a classification or regression task, train real models, inspect hel newer and Python 3.11 or newer. In PowerShell, start the API in one terminal:
 
 ```powershell
 python -m venv .venv
@@ -31,9 +27,9 @@ $env:PATH = "$(Get-Location)\.local\node-v24.21.0-win-x64;$env:PATH"
 npm.cmd run dev
 ```
 
-To open the app on a phone connected to the same Wi-Fi, set `$env:MINDMESH_ORIGIN = "http://<computer-wifi-ip>:5173"` before starting the API, run Vite with `npm.cmd run dev -- --host 0.0.0.0`, then open that URL on the phone. Keep both terminals running.
+that URL on the phone. Keep both terminals running.
 
-## Features
+## Features#####ydfugieurghfisu
 
 - Create and delete projects. Deleting a project leaves its datasets in the workspace, unassigned.
 - Import CSV or XLSX files, including a selected worksheet from a multi-sheet workbook.
