@@ -250,6 +250,11 @@ test('mobile layout and project dialog are usable', async ({ page }) => {
     mimeType: 'text/csv',
     buffer: Buffer.from('x,y\n1,2'),
   })
-  await expect(page.getByRole('dialog', { name: 'Review dataset' })).toBeVisible()
+  const review = page.getByRole('dialog', { name: 'Review dataset' })
+  await expect(review).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await review.getByRole('button', { name: 'Save dataset' }).click()
+  await expect(page.getByRole('heading', { name: 'Mobile' })).toBeVisible()
+  await expect(page.getByLabel('Dataset information')).toContainText('Mobile.csv')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

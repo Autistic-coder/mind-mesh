@@ -37,11 +37,17 @@ To open the app on a phone connected to the same Wi-Fi, set `$env:MINDMESH_ORIGI
 
 - Create and delete projects. Deleting a project leaves its datasets in the workspace, unassigned.
 - Import CSV or XLSX files, including a selected worksheet from a multi-sheet workbook.
-- Inspect inferred column types, missing values, row counts, and up to 10 preview rows.
+- Review a bounded preview before saving, then inspect inferred column types, missing values, row
+  counts, file metadata, and the saved preview.
 - Assign datasets to projects, download their original files, or remove them from the account workspace.
 - Change the display name, reset the workspace to empty, or load an independent sample project.
 
-Imports use a Web Worker with a 20-second timeout. Limits are 5 MB per file, 20,000 data rows, and 100 columns. CSV files must use UTF-8, with non-empty unique headers and consistent row widths.
+The browser reads imports in a Web Worker with a 20-second timeout, then the API independently
+parses the selected data before saving it. Limits are 25 MB per file, 200,000 data rows, 10,000
+columns, and 10,000,000 cells. XLSX archives may expand to at most 160 MB. CSV files must use
+UTF-8, with non-empty unique headers and consistent row widths. Spreadsheet formulas and error
+cells are rejected; export calculated values before uploading. See
+[Dataset workflow](docs/dataset-workflow.md) for the validation, storage, and recovery rules.
 
 Older browser-only workspaces remain untouched in `localStorage` under `mindmesh.workspace.v1`; they are never automatically attached to an account. In **Workspace settings → Older browser workspace**, choose **Review browser copy** and confirm to import its personal projects and dataset previews into the current account. **Export browser copy** downloads the original JSON without changing it, including if it cannot be parsed. The import creates new IDs, so each account gets its own copy. Old records contain project details, dataset summaries, and up to 25 preview rows, but not complete uploaded files. Re-upload an original file if you need its full data in the account. Current account data is stored in SQLite, and complete new uploads are kept outside the public web root under `var/uploads`, accessible only through ownership-checked API endpoints.
 
@@ -59,3 +65,11 @@ npm run format:check
 ```
 
 Run the build before browser tests. In the original Windows workspace, set `$env:PLAYWRIGHT_BROWSERS_PATH = "$(Get-Location)\.local\browsers"` before `npm.cmd run test:e2e` to reuse the installed browser.
+
+Backend checks can be run with:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest backend\tests -q
+.\.venv\Scripts\python.exe -m ruff check backend
+.\.venv\Scripts\python.exe -m ruff format --check backend\dataset_files.py backend\workspace.py backend\tests
+```

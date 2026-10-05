@@ -379,8 +379,9 @@ export function Datasets() {
                       {column.name}
                       <span className="column-info">
                         {column.type} · {column.missing.toLocaleString()} missing ·{' '}
-                        {column.uniqueCountCapped ? '30+' : column.uniqueCount.toLocaleString()}{' '}
-                        unique
+                        {column.uniqueCountCapped
+                          ? 'unique count capped'
+                          : `${column.uniqueCount.toLocaleString()} unique`}
                       </span>
                     </th>
                   ))}
