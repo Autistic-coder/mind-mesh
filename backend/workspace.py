@@ -113,6 +113,9 @@ def dataset_json(dataset: Dataset) -> dict:
         and STORED_NAME.fullmatch(dataset.stored_name)
         and (get_settings().upload_dir / dataset.stored_name).is_file()
     )
+    storage_status = (
+        "complete" if has_file else "missing" if dataset.original_name else "preview-only"
+    )
     return {
         "id": dataset.id,
         "name": dataset.name,
@@ -122,10 +125,13 @@ def dataset_json(dataset: Dataset) -> dict:
         "preview": json.loads(dataset.preview_json),
         "createdAt": dataset.created_at.isoformat(),
         "hasFile": has_file,
+        "storageStatus": storage_status,
         "originalFilename": dataset.original_name,
-        "fileFormat": dataset.original_name.rsplit(".", 1)[-1].upper() if has_file else None,
-        "sizeBytes": dataset.size_bytes if has_file else None,
-        "sheetName": dataset.sheet_name if has_file else None,
+        "fileFormat": dataset.original_name.rsplit(".", 1)[-1].upper()
+        if dataset.original_name
+        else None,
+        "sizeBytes": dataset.size_bytes,
+        "sheetName": dataset.sheet_name,
     }
 
 

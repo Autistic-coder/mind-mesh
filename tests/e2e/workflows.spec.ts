@@ -63,6 +63,9 @@ test('creates a project, imports data, assigns it, and retains it after refresh'
   await expect(page).toHaveURL(/\/datasets\?project=/)
   await uploadCsv(page)
   await expect(page.getByLabel('Assign to project')).toHaveValue(/.+/)
+  const information = page.locator('.dataset-facts')
+  await expect(information.getByText('Research.csv', { exact: true })).toBeVisible()
+  await expect(information.getByText('CSV', { exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '40000', exact: true })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('Assign to project')).toHaveValue(/.+/)
@@ -100,6 +103,10 @@ test('imports a selected workbook sheet and reports invalid files', async ({ pag
   const review = page.getByRole('dialog', { name: 'Review dataset' })
   await expect(review.getByText('Rent', { exact: true })).toBeVisible()
   await review.getByRole('button', { name: 'Save dataset' }).click()
+  await expect(
+    page.locator('.dataset-facts').getByText('Homes.xlsx', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('.dataset-facts').getByText('Rent', { exact: true })).toBeVisible()
   await expect(page.getByRole('cell', { name: '1200', exact: true })).toBeVisible()
   await page.getByLabel('Upload dataset').setInputFiles({
     name: 'bad.csv',
@@ -169,7 +176,18 @@ test('does not attach old anonymous content to a signed-in account', async ({ pa
           { id: 'churn', name: 'Customer churn', description: '', demo: true, updatedAt: now },
           { id: 'mine', name: 'Mine', description: '', demo: false, updatedAt: now },
         ],
-        datasets: [],
+        datasets: [
+          {
+            id: 'old-data',
+            name: 'Browser data',
+            source: 'uploaded',
+            projectId: 'mine',
+            columns: [{ name: 'value', type: 'number', missing: 0, uniqueCount: 1, values: ['1'] }],
+            rowCount: 1,
+            preview: [[1]],
+            createdAt: now,
+          },
+        ],
         models: [],
         messages: [],
       }),
@@ -182,15 +200,20 @@ test('does not attach old anonymous content to a signed-in account', async ({ pa
   expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toContain('Mine')
   await page.getByRole('button', { name: 'Workspace settings' }).click()
   await page.getByRole('button', { name: 'Review browser copy' }).click()
-  await expect(page.getByRole('dialog')).toContainText('1 projects and 0 dataset previews')
+  await expect(page.getByRole('dialog')).toContainText('1 projects and 1 dataset previews')
   await page.getByRole('button', { name: 'Import into this account' }).click()
   await expect(page.getByRole('status')).toContainText('Imported 1 projects')
   await page.getByRole('button', { name: 'Close dialog' }).click()
   await page.goto('/projects')
   await expect(page.getByRole('link', { name: 'Mine', exact: true })).toBeVisible()
   await expect(page.getByText('Customer churn')).toHaveCount(0)
+  await page.goto('/datasets')
+  await page.locator('.dataset-open').filter({ hasText: 'Browser data' }).click()
+  await expect(page.getByText('Preview-only record')).toBeVisible()
+  await expect(page.getByText(/Re-upload the CSV or XLSX file/)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download original' })).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole('link', { name: 'Mine', exact: true })).toBeVisible()
+  await expect(page.getByText('Preview-only record')).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('mindmesh.workspace.v1'))).toContain('Mine')
 })
 

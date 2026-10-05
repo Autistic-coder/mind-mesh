@@ -18,6 +18,7 @@ export interface Dataset {
   preview: Cell[][]
   createdAt: string
   hasFile?: boolean
+  storageStatus?: 'complete' | 'preview-only' | 'missing'
   originalFilename?: string | null
   fileFormat?: 'CSV' | 'XLSX' | null
   sizeBytes?: number | null

@@ -59,6 +59,7 @@ def test_two_accounts_cannot_access_exact_ids_or_forge_ownership(api):
         assert upload.json()["rowCount"] == 2
         assert upload.json()["preview"][0] == ["25", "40000", "Yes"]
         assert upload.json()["hasFile"] is True
+        assert upload.json()["storageStatus"] == "complete"
         assert upload.json()["originalFilename"] == "Research.csv"
         assert upload.json()["fileFormat"] == "CSV"
         assert upload.json()["sizeBytes"] == len(CSV)
@@ -405,6 +406,7 @@ def test_explicit_legacy_import_creates_private_copies_without_files(api):
         assert project_id != "old-project" and dataset_id != "old-data"
         assert owned["datasets"][0]["projectId"] == project_id
         assert owned["datasets"][0]["hasFile"] is False
+        assert owned["datasets"][0]["storageStatus"] == "preview-only"
         assert owned["datasets"][0]["originalFilename"] is None
         assert owned["datasets"][0]["sizeBytes"] is None
         assert owned["datasets"][0]["sheetName"] is None
@@ -494,3 +496,21 @@ def test_failed_workspace_reset_restores_dataset_files(api, monkeypatch):
     monkeypatch.setattr(DbSession, "commit", original_commit)
     assert client.get(f"/api/datasets/{dataset_id}/download").content == CSV
     assert len(list((tmp_path / "uploads").iterdir())) == 1
+
+
+def test_missing_original_is_reported_without_hiding_saved_metadata(api):
+    client, engine, tmp_path = api
+    csrf = account(client, "missing-file@example.com")
+    uploaded = write(
+        client, csrf, "POST", "/api/datasets", files={"file": ("Research.csv", CSV, "text/csv")}
+    ).json()
+    with DbSession(engine) as db:
+        stored_name = db.get(Dataset, uploaded["id"]).stored_name
+    (tmp_path / "uploads" / stored_name).unlink()
+    details = client.get(f"/api/datasets/{uploaded['id']}").json()
+    assert details["storageStatus"] == "missing"
+    assert details["hasFile"] is False
+    assert details["originalFilename"] == "Research.csv"
+    assert details["fileFormat"] == "CSV"
+    assert details["sizeBytes"] == len(CSV)
+    assert client.get(f"/api/datasets/{uploaded['id']}/download").status_code == 404

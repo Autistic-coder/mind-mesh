@@ -10,6 +10,14 @@ function fileSize(bytes: number) {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function uploadDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 export function Datasets() {
   const { state, uploadDataset, assignDataset, deleteDataset } = useWorkspace()
   const [params, setParams] = useSearchParams()
@@ -160,13 +168,17 @@ export function Datasets() {
                   aria-pressed={selected?.id === dataset.id}
                 >
                   <span className="file-mark" aria-hidden="true">
-                    DATA
+                    {dataset.storageStatus === 'preview-only'
+                      ? 'VIEW'
+                      : (dataset.fileFormat ?? 'DATA')}
                   </span>
                   <span>
                     <span className="dataset-name">{dataset.name}</span>
                     <span className="dataset-meta">
                       {dataset.rowCount.toLocaleString()} rows · {dataset.columns.length} columns ·{' '}
                       {state.projects.find((p) => p.id === dataset.projectId)?.name ?? 'Unassigned'}
+                      {dataset.storageStatus === 'preview-only' && ' · Preview only'}
+                      {dataset.storageStatus === 'missing' && ' · Original unavailable'}
                     </span>
                   </span>
                   <Arrow />
@@ -263,7 +275,9 @@ export function Datasets() {
         <section className="dataset-preview" aria-label="Dataset details">
           <div className="section-heading">
             <div>
-              <p className="eyebrow muted mb-3">Dataset preview</p>
+              <p className="eyebrow muted mb-3">
+                {selected.storageStatus === 'preview-only' ? 'Imported preview' : 'Saved dataset'}
+              </p>
               <h2>{selected.name}</h2>
             </div>
             <div className="flex flex-wrap gap-5">
@@ -280,6 +294,50 @@ export function Datasets() {
               </button>
             </div>
           </div>
+          {selected.storageStatus === 'preview-only' && (
+            <div className="dataset-source-note preview-only" role="note">
+              <strong>Preview-only record</strong>
+              <span>
+                This came from older browser storage, which did not contain the original file.
+                Re-upload the CSV or XLSX file to save and inspect the complete dataset.
+              </span>
+            </div>
+          )}
+          {selected.storageStatus === 'missing' && (
+            <div className="dataset-source-note missing-file" role="alert">
+              <strong>Original file unavailable</strong>
+              <span>
+                The saved summary remains visible, but the original file cannot currently be
+                downloaded. Upload the source file again to create a complete record.
+              </span>
+            </div>
+          )}
+          <dl className="dataset-facts" aria-label="Dataset information">
+            <div>
+              <dt>Display name</dt>
+              <dd>{selected.name}</dd>
+            </div>
+            <div>
+              <dt>Original filename</dt>
+              <dd>{selected.originalFilename ?? 'Not retained'}</dd>
+            </div>
+            <div>
+              <dt>Format</dt>
+              <dd>{selected.fileFormat ?? 'Preview only'}</dd>
+            </div>
+            <div>
+              <dt>File size</dt>
+              <dd>{selected.sizeBytes == null ? 'Not retained' : fileSize(selected.sizeBytes)}</dd>
+            </div>
+            <div>
+              <dt>Worksheet</dt>
+              <dd>{selected.sheetName ?? 'Not applicable'}</dd>
+            </div>
+            <div>
+              <dt>Uploaded</dt>
+              <dd>{uploadDate(selected.createdAt)}</dd>
+            </div>
+          </dl>
           <div className="preview-summary">
             <p>
               {selected.rowCount.toLocaleString()} rows <span> / </span>
@@ -320,7 +378,9 @@ export function Datasets() {
                     <th key={column.name}>
                       {column.name}
                       <span className="column-info">
-                        {column.type} · {column.missing} missing
+                        {column.type} · {column.missing.toLocaleString()} missing ·{' '}
+                        {column.uniqueCountCapped ? '30+' : column.uniqueCount.toLocaleString()}{' '}
+                        unique
                       </span>
                     </th>
                   ))}
@@ -339,9 +399,11 @@ export function Datasets() {
           </div>
           <p className="retention-note">
             Showing {Math.min(selected.preview.length, 10)} of {selected.rowCount} rows. The
-            {selected.hasFile
+            {selected.storageStatus === 'complete'
               ? ' original file is saved to your account.'
-              : ' original file was not part of this browser-only import. Upload it again to retain the complete dataset.'}
+              : selected.storageStatus === 'missing'
+                ? ' saved summary is available, but the original file is missing.'
+                : ' original file was not part of this browser-only import.'}
           </p>
         </section>
       )}

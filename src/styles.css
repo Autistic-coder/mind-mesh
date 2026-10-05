@@ -804,6 +804,46 @@ dialog::backdrop {
   border-top: 1px solid #858c72;
   padding-top: 30px;
 }
+.dataset-source-note {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.35fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-bottom: 30px;
+  padding: 17px 20px;
+  border-left: 2px solid #89983f;
+  background: #e7ead9;
+  font-size: 12px;
+  line-height: 1.75;
+}
+.dataset-source-note strong {
+  font-weight: 600;
+}
+.dataset-source-note.missing-file {
+  border-left-color: #a25d43;
+  background: #efe3da;
+}
+.dataset-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 30px;
+  border-block: 1px solid var(--line);
+}
+.dataset-facts > div {
+  min-width: 0;
+  padding: 17px 18px 17px 0;
+}
+.dataset-facts dt {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.dataset-facts dd {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  font: 400 19px var(--font-serif);
+}
 .preview-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1207,6 +1247,13 @@ progress::-moz-progress-bar {
   }
   .preview-summary .field {
     width: 100%;
+  }
+  .dataset-source-note {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .dataset-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .upload-review-summary {
     grid-template-columns: 1fr;

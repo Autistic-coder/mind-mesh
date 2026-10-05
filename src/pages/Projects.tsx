@@ -122,7 +122,12 @@ export function ProjectDetails() {
                   <div>
                     <h3>{dataset.name}</h3>
                     <p>
-                      {dataset.rowCount} rows · {dataset.columns.length} columns · Uploaded
+                      {dataset.rowCount} rows · {dataset.columns.length} columns ·{' '}
+                      {dataset.storageStatus === 'preview-only'
+                        ? 'Preview only'
+                        : dataset.storageStatus === 'missing'
+                          ? 'Original unavailable'
+                          : 'Complete upload'}
                     </p>
                   </div>
                   <Arrow />
