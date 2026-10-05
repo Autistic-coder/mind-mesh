@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings:
     database_url: str
     upload_dir: Path
+    model_dir: Path
     origin: str
     secure_cookies: bool
 
@@ -21,6 +22,7 @@ def get_settings() -> Settings:
             "MINDMESH_DATABASE_URL", f"sqlite:///{(ROOT / 'var' / 'mindmesh.db').as_posix()}"
         ),
         upload_dir=Path(os.getenv("MINDMESH_UPLOAD_DIR", str(ROOT / "var" / "uploads"))).resolve(),
+        model_dir=Path(os.getenv("MINDMESH_MODEL_DIR", str(ROOT / "var" / "models"))).resolve(),
         origin=os.getenv("MINDMESH_ORIGIN", "http://127.0.0.1:5173").rstrip("/"),
         secure_cookies=os.getenv("MINDMESH_SECURE_COOKIES", "false").lower() == "true",
     )

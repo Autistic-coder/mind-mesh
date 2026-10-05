@@ -1,16 +1,28 @@
 """MindMesh API entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .auth import router as auth_router
 from .config import get_settings
+from .ml_api import router as ml_router
+from .ml_service import recover_interrupted_runs
 from .workspace import router as workspace_router
 
-app = FastAPI(title="MindMesh API", docs_url=None, redoc_url=None)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    recover_interrupted_runs()
+    yield
+
+
+app = FastAPI(title="MindMesh API", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(workspace_router)
+app.include_router(ml_router)
 
 
 @app.middleware("http")

@@ -18,7 +18,8 @@ from .auth import current_user, require_csrf
 from .config import get_settings
 from .database import get_db
 from .dataset_files import MAX_BYTES, inspect_upload, validate_filename
-from .models import Conversation, Dataset, Project, User, utcnow
+from .ml_service import model_artifact_paths
+from .models import Conversation, Dataset, Project, TrainingConfig, TrainingRun, User, utcnow
 from .models import Session as AccountSession
 
 router = APIRouter(prefix="/api", tags=["workspace"])
@@ -135,14 +136,11 @@ def dataset_json(dataset: Dataset) -> dict:
     }
 
 
-def quarantine_files(datasets: list[Dataset]) -> list[tuple[Path, Path]]:
+def quarantine_paths(paths: list[Path]) -> list[tuple[Path, Path]]:
     """Hide owned files before a delete; restore them if the transaction fails."""
     moved: list[tuple[Path, Path]] = []
     try:
-        for dataset in datasets:
-            if not dataset.stored_name or not STORED_NAME.fullmatch(dataset.stored_name):
-                continue
-            original = get_settings().upload_dir / dataset.stored_name
+        for original in paths:
             if original.is_file():
                 hidden = original.with_name(f".{uuid4().hex}.delete")
                 os.replace(original, hidden)
@@ -151,6 +149,31 @@ def quarantine_files(datasets: list[Dataset]) -> list[tuple[Path, Path]]:
         restore_files(moved)
         raise
     return moved
+
+
+def owned_dataset_paths(db: DbSession, datasets: list[Dataset]) -> list[Path]:
+    uploads = [
+        get_settings().upload_dir / item.stored_name
+        for item in datasets
+        if item.stored_name and STORED_NAME.fullmatch(item.stored_name)
+    ]
+    artifacts = model_artifact_paths(db, dataset_ids=[item.id for item in datasets])
+    return [*uploads, *artifacts]
+
+
+def ensure_no_active_training(db: DbSession, dataset_ids: list[str]) -> None:
+    if not dataset_ids:
+        return
+    active = db.scalar(
+        select(TrainingRun.id)
+        .join(TrainingConfig, TrainingRun.config_id == TrainingConfig.id)
+        .where(
+            TrainingConfig.dataset_id.in_(dataset_ids),
+            TrainingRun.status.in_(["queued", "running"]),
+        )
+    )
+    if active:
+        raise HTTPException(409, "Wait for active training to finish before removing this data.")
 
 
 def restore_files(moved: list[tuple[Path, Path]]) -> None:
@@ -243,7 +266,8 @@ def reset_workspace(
     session: AccountSession = Depends(require_csrf), db: DbSession = Depends(get_db)
 ):
     datasets = db.scalars(select(Dataset).where(Dataset.owner_id == session.user_id)).all()
-    moved = quarantine_files(datasets)
+    ensure_no_active_training(db, [item.id for item in datasets])
+    moved = quarantine_paths(owned_dataset_paths(db, datasets))
     try:
         for conversation in db.scalars(
             select(Conversation).where(Conversation.owner_id == session.user_id)
@@ -458,7 +482,8 @@ def delete_dataset(
     db: DbSession = Depends(get_db),
 ):
     dataset = owned_dataset(db, session.user_id, dataset_id)
-    moved = quarantine_files([dataset])
+    ensure_no_active_training(db, [dataset.id])
+    moved = quarantine_paths(owned_dataset_paths(db, [dataset]))
     try:
         db.delete(dataset)
         db.commit()

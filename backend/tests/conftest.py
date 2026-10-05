@@ -15,6 +15,7 @@ def api(tmp_path, monkeypatch):
     url = f"sqlite:///{(tmp_path / 'accounts.db').as_posix()}"
     monkeypatch.setenv("MINDMESH_DATABASE_URL", url)
     monkeypatch.setenv("MINDMESH_UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("MINDMESH_MODEL_DIR", str(tmp_path / "models"))
     command.upgrade(Config("alembic.ini"), "head")
     engine = make_engine(url)
 

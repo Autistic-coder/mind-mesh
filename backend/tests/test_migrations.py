@@ -17,6 +17,10 @@ def test_initial_migration_creates_persistent_workspace_tables(tmp_path, monkeyp
     engine = make_engine(database_url)
     tables = set(inspect(engine).get_table_names())
     assert "sheet_name" in {column["name"] for column in inspect(engine).get_columns("datasets")}
+    training_columns = {
+        column["name"]: column for column in inspect(engine).get_columns("training_configs")
+    }
+    assert training_columns["project_id"]["nullable"] is True
     assert {
         "users",
         "sessions",
