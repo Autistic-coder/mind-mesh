@@ -210,7 +210,9 @@ def inspect_upload(filename: str, data: bytes, sheet_name: str | None = None) ->
             if sheet.max_row and sheet.max_column and sheet.max_row * sheet.max_column > MAX_CELLS:
                 raise HTTPException(400, "This worksheet has too many cells to inspect safely.")
             label = f"{stem} · {chosen}" if len(workbook.sheetnames) > 1 else stem
-            return _summarize(label, sheet.iter_rows(values_only=False))
+            summary = _summarize(label, sheet.iter_rows(values_only=False))
+            summary["sheetName"] = chosen
+            return summary
         finally:
             workbook.close()
     except (

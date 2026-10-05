@@ -2,6 +2,7 @@
 
 from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 from sqlalchemy import select
@@ -58,6 +59,10 @@ def test_two_accounts_cannot_access_exact_ids_or_forge_ownership(api):
         assert upload.json()["rowCount"] == 2
         assert upload.json()["preview"][0] == ["25", "40000", "Yes"]
         assert upload.json()["hasFile"] is True
+        assert upload.json()["originalFilename"] == "Research.csv"
+        assert upload.json()["fileFormat"] == "CSV"
+        assert upload.json()["sizeBytes"] == len(CSV)
+        assert upload.json()["sheetName"] is None
         download = alice.get(f"/api/datasets/{dataset_id}/download")
         assert download.content == CSV
         assert "no-store" in download.headers["Cache-Control"]
@@ -199,7 +204,7 @@ def test_upload_validation_and_worksheet_selection(api):
         ("malware.exe", CSV),
         ("bad.csv", b"a,a\n1,2\n"),
         ("bad.xlsx", b"not a workbook"),
-        ("oversize.csv", b"a\n" + b"x" * (5 * 1024 * 1024)),
+        ("oversize.csv", b"a\n" + b"x" * (25 * 1024 * 1024)),
     ]:
         result = write(
             client,
@@ -209,7 +214,7 @@ def test_upload_validation_and_worksheet_selection(api):
             files={"file": (name, contents, "application/octet-stream")},
         )
         assert result.status_code == 400, (name, result.text)
-    assert not (tmp_path / "uploads").exists()
+    assert not list((tmp_path / "uploads").iterdir())
 
     book = Workbook()
     book.active.title = "First"
@@ -251,7 +256,13 @@ def test_upload_validation_and_worksheet_selection(api):
     )
     assert chosen.status_code == 201, chosen.text
     assert chosen.json()["name"] == "Homes · Rent"
+    assert chosen.json()["sheetName"] == "Rent"
+    assert chosen.json()["fileFormat"] == "XLSX"
+    assert chosen.json()["originalFilename"] == "Homes.xlsx"
+    assert chosen.json()["sizeBytes"] == len(bytes_)
     assert chosen.json()["preview"] == [[500, 1200]]
+    assert client.get(f"/api/datasets/{chosen.json()['id']}").json()["sheetName"] == "Rent"
+    assert client.get("/api/datasets").json()[0]["sheetName"] == "Rent"
     assert client.get(f"/api/datasets/{chosen.json()['id']}/download").content == bytes_
 
 
@@ -290,6 +301,8 @@ def test_workspace_survives_new_client_and_requires_csrf(api):
         workspace = restarted.get("/api/workspace")
         assert [item["name"] for item in workspace.json()["projects"]] == ["After restart"]
         assert [item["name"] for item in workspace.json()["datasets"]] == ["Persistent"]
+        assert workspace.json()["datasets"][0]["originalFilename"] == "Persistent.csv"
+        assert workspace.json()["datasets"][0]["sizeBytes"] == len(CSV)
         assert restarted.get(f"/api/datasets/{uploaded.json()['id']}/download").content == CSV
 
 
@@ -392,6 +405,9 @@ def test_explicit_legacy_import_creates_private_copies_without_files(api):
         assert project_id != "old-project" and dataset_id != "old-data"
         assert owned["datasets"][0]["projectId"] == project_id
         assert owned["datasets"][0]["hasFile"] is False
+        assert owned["datasets"][0]["originalFilename"] is None
+        assert owned["datasets"][0]["sizeBytes"] is None
+        assert owned["datasets"][0]["sheetName"] is None
         assert alice.get(f"/api/datasets/{dataset_id}/download").status_code == 404
         assert bob.get("/api/workspace").json()["projects"] == []
         for path in (
@@ -413,3 +429,68 @@ def test_explicit_legacy_import_creates_private_copies_without_files(api):
         bob_owned = bob.get("/api/workspace").json()
         assert bob_owned["projects"][0]["id"] != project_id
         assert bob_owned["datasets"][0]["id"] != dataset_id
+
+
+def test_failed_database_write_removes_staged_and_final_files(api, monkeypatch):
+    client, engine, tmp_path = api
+    csrf = account(client, "failed-upload@example.com")
+    original_commit = DbSession.commit
+
+    def fail_commit(_self):
+        raise RuntimeError("database write failed")
+
+    monkeypatch.setattr(DbSession, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="database write failed"):
+        write(
+            client,
+            csrf,
+            "POST",
+            "/api/datasets",
+            files={"file": ("Research.csv", CSV, "text/csv")},
+        )
+    monkeypatch.setattr(DbSession, "commit", original_commit)
+    assert client.get("/api/datasets").json() == []
+    assert not list((tmp_path / "uploads").iterdir())
+    with DbSession(engine) as db:
+        assert db.scalars(select(Dataset)).all() == []
+
+
+def test_failed_delete_restores_file_and_owned_record(api, monkeypatch):
+    client, _engine, tmp_path = api
+    csrf = account(client, "failed-delete@example.com")
+    uploaded = write(
+        client, csrf, "POST", "/api/datasets", files={"file": ("Research.csv", CSV, "text/csv")}
+    )
+    dataset_id = uploaded.json()["id"]
+    original_commit = DbSession.commit
+
+    def fail_commit(_self):
+        raise RuntimeError("database delete failed")
+
+    monkeypatch.setattr(DbSession, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="database delete failed"):
+        write(client, csrf, "DELETE", f"/api/datasets/{dataset_id}")
+    monkeypatch.setattr(DbSession, "commit", original_commit)
+    assert client.get(f"/api/datasets/{dataset_id}").status_code == 200
+    assert client.get(f"/api/datasets/{dataset_id}/download").content == CSV
+    assert len(list((tmp_path / "uploads").iterdir())) == 1
+
+
+def test_failed_workspace_reset_restores_dataset_files(api, monkeypatch):
+    client, _engine, tmp_path = api
+    csrf = account(client, "failed-reset@example.com")
+    uploaded = write(
+        client, csrf, "POST", "/api/datasets", files={"file": ("Research.csv", CSV, "text/csv")}
+    )
+    dataset_id = uploaded.json()["id"]
+    original_commit = DbSession.commit
+
+    def fail_commit(_self):
+        raise RuntimeError("database reset failed")
+
+    monkeypatch.setattr(DbSession, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="database reset failed"):
+        write(client, csrf, "DELETE", "/api/workspace")
+    monkeypatch.setattr(DbSession, "commit", original_commit)
+    assert client.get(f"/api/datasets/{dataset_id}/download").content == CSV
+    assert len(list((tmp_path / "uploads").iterdir())) == 1

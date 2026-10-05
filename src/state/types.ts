@@ -2,9 +2,10 @@ export type Cell = string | number
 
 export interface Column {
   name: string
-  type: 'number' | 'category' | 'text'
+  type: 'number' | 'category' | 'text' | 'date' | 'boolean' | 'mixed'
   missing: number
   uniqueCount: number
+  uniqueCountCapped?: boolean
   values: string[]
 }
 
@@ -17,6 +18,10 @@ export interface Dataset {
   preview: Cell[][]
   createdAt: string
   hasFile?: boolean
+  originalFilename?: string | null
+  fileFormat?: 'CSV' | 'XLSX' | null
+  sizeBytes?: number | null
+  sheetName?: string | null
 }
 
 export interface Project {

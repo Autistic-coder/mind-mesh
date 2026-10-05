@@ -1,8 +1,10 @@
 """Account-scoped project and dataset API."""
 
 import json
+import os
 import re
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -10,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
+from starlette.concurrency import run_in_threadpool
 
 from .auth import current_user, require_csrf
 from .config import get_settings
@@ -105,6 +108,11 @@ def project_json(project: Project) -> dict:
 
 
 def dataset_json(dataset: Dataset) -> dict:
+    has_file = bool(
+        dataset.stored_name
+        and STORED_NAME.fullmatch(dataset.stored_name)
+        and (get_settings().upload_dir / dataset.stored_name).is_file()
+    )
     return {
         "id": dataset.id,
         "name": dataset.name,
@@ -113,8 +121,44 @@ def dataset_json(dataset: Dataset) -> dict:
         "rowCount": dataset.row_count,
         "preview": json.loads(dataset.preview_json),
         "createdAt": dataset.created_at.isoformat(),
-        "hasFile": dataset.stored_name is not None,
+        "hasFile": has_file,
+        "originalFilename": dataset.original_name,
+        "fileFormat": dataset.original_name.rsplit(".", 1)[-1].upper() if has_file else None,
+        "sizeBytes": dataset.size_bytes if has_file else None,
+        "sheetName": dataset.sheet_name if has_file else None,
     }
+
+
+def quarantine_files(datasets: list[Dataset]) -> list[tuple[Path, Path]]:
+    """Hide owned files before a delete; restore them if the transaction fails."""
+    moved: list[tuple[Path, Path]] = []
+    try:
+        for dataset in datasets:
+            if not dataset.stored_name or not STORED_NAME.fullmatch(dataset.stored_name):
+                continue
+            original = get_settings().upload_dir / dataset.stored_name
+            if original.is_file():
+                hidden = original.with_name(f".{uuid4().hex}.delete")
+                os.replace(original, hidden)
+                moved.append((original, hidden))
+    except Exception:
+        restore_files(moved)
+        raise
+    return moved
+
+
+def restore_files(moved: list[tuple[Path, Path]]) -> None:
+    for original, hidden in reversed(moved):
+        os.replace(hidden, original)
+
+
+def discard_files(moved: list[tuple[Path, Path]]) -> None:
+    for _original, hidden in moved:
+        hidden.unlink(missing_ok=True)
+
+
+def inspect_staged_upload(path: Path, filename: str, sheet_name: str | None) -> dict:
+    return inspect_upload(filename, path.read_bytes(), sheet_name)
 
 
 def owned_project(db: DbSession, user_id: str, project_id: str) -> Project:
@@ -193,18 +237,22 @@ def reset_workspace(
     session: AccountSession = Depends(require_csrf), db: DbSession = Depends(get_db)
 ):
     datasets = db.scalars(select(Dataset).where(Dataset.owner_id == session.user_id)).all()
-    for conversation in db.scalars(
-        select(Conversation).where(Conversation.owner_id == session.user_id)
-    ):
-        db.delete(conversation)
-    for dataset in datasets:
-        db.delete(dataset)
-    for project in db.scalars(select(Project).where(Project.owner_id == session.user_id)):
-        db.delete(project)
-    db.commit()
-    for dataset in datasets:
-        if dataset.stored_name and STORED_NAME.fullmatch(dataset.stored_name):
-            (get_settings().upload_dir / dataset.stored_name).unlink(missing_ok=True)
+    moved = quarantine_files(datasets)
+    try:
+        for conversation in db.scalars(
+            select(Conversation).where(Conversation.owner_id == session.user_id)
+        ):
+            db.delete(conversation)
+        for dataset in datasets:
+            db.delete(dataset)
+        for project in db.scalars(select(Project).where(Project.owner_id == session.user_id)):
+            db.delete(project)
+        db.commit()
+    except Exception:
+        db.rollback()
+        restore_files(moved)
+        raise
+    discard_files(moved)
 
 
 @router.get("/projects")
@@ -296,22 +344,24 @@ async def upload_dataset(
     _stem, extension = validate_filename(filename)
     if project_id:
         owned_project(db, session.user_id, project_id)
-    chunks = bytearray()
-    try:
-        while block := await file.read(1024 * 1024):
-            chunks.extend(block)
-            if len(chunks) > MAX_BYTES:
-                raise HTTPException(400, "Choose a file no larger than 25 MB.")
-    finally:
-        await file.close()
-    summary = inspect_upload(filename, bytes(chunks), sheet_name)
-    stored_name = f"{uuid4().hex}{extension}"
     upload_dir = get_settings().upload_dir
     upload_dir.mkdir(parents=True, exist_ok=True)
+    stored_name = f"{uuid4().hex}{extension}"
+    staged_path = upload_dir / f".{uuid4().hex}.part"
     stored_path = upload_dir / stored_name
-    with stored_path.open("xb") as target:
-        target.write(chunks)
+    size_bytes = 0
+    committed = False
     try:
+        with staged_path.open("xb") as target:
+            while block := await file.read(1024 * 1024):
+                size_bytes += len(block)
+                if size_bytes > MAX_BYTES:
+                    raise HTTPException(400, "Choose a file no larger than 25 MB.")
+                target.write(block)
+            target.flush()
+            os.fsync(target.fileno())
+        summary = await run_in_threadpool(inspect_staged_upload, staged_path, filename, sheet_name)
+        os.replace(staged_path, stored_path)
         dataset = Dataset(
             owner_id=session.user_id,
             project_id=project_id,
@@ -321,17 +371,26 @@ async def upload_dataset(
             content_type="text/csv"
             if extension == ".csv"
             else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            size_bytes=len(chunks),
+            size_bytes=size_bytes,
+            sheet_name=summary.get("sheetName"),
             row_count=summary["rowCount"],
             columns_json=json.dumps(summary["columns"]),
             preview_json=json.dumps(summary["preview"]),
         )
         db.add(dataset)
         db.commit()
+        committed = True
+        return dataset_json(dataset)
     except Exception:
-        stored_path.unlink(missing_ok=True)
+        db.rollback()
         raise
-    return dataset_json(dataset)
+    finally:
+        try:
+            await file.close()
+        finally:
+            staged_path.unlink(missing_ok=True)
+            if not committed:
+                stored_path.unlink(missing_ok=True)
 
 
 @router.get("/datasets/{dataset_id}")
@@ -393,8 +452,12 @@ def delete_dataset(
     db: DbSession = Depends(get_db),
 ):
     dataset = owned_dataset(db, session.user_id, dataset_id)
-    stored_name = dataset.stored_name
-    db.delete(dataset)
-    db.commit()
-    if stored_name and STORED_NAME.fullmatch(stored_name):
-        (get_settings().upload_dir / stored_name).unlink(missing_ok=True)
+    moved = quarantine_files([dataset])
+    try:
+        db.delete(dataset)
+        db.commit()
+    except Exception:
+        db.rollback()
+        restore_files(moved)
+        raise
+    discard_files(moved)

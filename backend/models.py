@@ -64,6 +64,7 @@ class Dataset(Base):
     original_name: Mapped[str | None] = mapped_column(String(255))
     content_type: Mapped[str | None] = mapped_column(String(100))
     size_bytes: Mapped[int | None] = mapped_column(Integer)
+    sheet_name: Mapped[str | None] = mapped_column(String(255))
     row_count: Mapped[int] = mapped_column(Integer)
     columns_json: Mapped[str] = mapped_column(Text)
     preview_json: Mapped[str] = mapped_column(Text)
