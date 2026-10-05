@@ -11,6 +11,7 @@ from backend.models import Project, User
 
 def test_initial_migration_creates_persistent_workspace_tables(tmp_path, monkeypatch):
     database_url = f"sqlite:///{(tmp_path / 'mindmesh.db').as_posix()}"
+    monkeypatch.setenv("MINDMESH_ALLOW_SQLITE", "true")
     monkeypatch.setenv("MINDMESH_DATABASE_URL", database_url)
     config = Config("alembic.ini")
     command.upgrade(config, "head")
@@ -32,6 +33,7 @@ def test_initial_migration_creates_persistent_workspace_tables(tmp_path, monkeyp
         "predictions",
         "conversations",
         "chat_messages",
+        "rate_limits",
     } <= tables
     with Session(engine) as db:
         user = User(display_name="Ada", email="ada@example.com", password_hash="argon2-test-hash")
@@ -52,6 +54,7 @@ def test_initial_migration_creates_persistent_workspace_tables(tmp_path, monkeyp
 
 def test_sheet_migration_keeps_existing_dataset_records(tmp_path, monkeypatch):
     database_url = f"sqlite:///{(tmp_path / 'existing.db').as_posix()}"
+    monkeypatch.setenv("MINDMESH_ALLOW_SQLITE", "true")
     monkeypatch.setenv("MINDMESH_DATABASE_URL", database_url)
     config = Config("alembic.ini")
     command.upgrade(config, "61faf2ac264c")

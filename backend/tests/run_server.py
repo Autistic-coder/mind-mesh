@@ -11,6 +11,7 @@ from alembic.config import Config
 with tempfile.TemporaryDirectory(prefix="mindmesh-e2e-") as directory:
     root = Path(directory)
     os.environ["MINDMESH_DATABASE_URL"] = f"sqlite:///{(root / 'mindmesh.db').as_posix()}"
+    os.environ["MINDMESH_ALLOW_SQLITE"] = "true"
     os.environ["MINDMESH_UPLOAD_DIR"] = str(root / "uploads")
     os.environ["MINDMESH_MODEL_DIR"] = str(root / "models")
     os.environ["MINDMESH_ORIGIN"] = "http://127.0.0.1:4173"

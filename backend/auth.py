@@ -7,9 +7,6 @@ from datetime import timedelta, timezone
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
-from limits import parse
-from limits.storage import MemoryStorage
-from limits.strategies import FixedWindowRateLimiter
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,13 +16,10 @@ from .config import get_settings
 from .database import get_db
 from .models import Session as AccountSession
 from .models import User, utcnow
+from .rate_limits import auth_limits
 
 router = APIRouter(prefix="/api/auth", tags=["accounts"])
 password_hasher = PasswordHasher()
-rate_limiter = FixedWindowRateLimiter(MemoryStorage())
-LOGIN_BY_IP = parse("10/minute")
-LOGIN_BY_EMAIL = parse("5/minute")
-REGISTER_BY_IP = parse("20/hour")
 SESSION_SECONDS = 7 * 24 * 60 * 60
 COOKIE_NAME = "mindmesh_session"
 
@@ -59,19 +53,6 @@ def public_user(user: User) -> dict:
     return {"id": user.id, "displayName": user.display_name, "email": user.email}
 
 
-def check_rate(request: Request, email: str, *, registration: bool = False) -> None:
-    address = request.client.host if request.client else "unknown"
-    if registration:
-        allowed = rate_limiter.hit(REGISTER_BY_IP, "register", address)
-    else:
-        allowed = rate_limiter.hit(LOGIN_BY_IP, "login-ip", address)
-        allowed = rate_limiter.hit(LOGIN_BY_EMAIL, "login-email", address, email) and allowed
-    if not allowed:
-        raise HTTPException(
-            429, "Too many attempts. Please try again later.", headers={"Retry-After": "60"}
-        )
-
-
 def session_response(user: User, db: DbSession, response: Response, request: Request) -> dict:
     token = secrets.token_urlsafe(48)
     csrf = secrets.token_urlsafe(32)
@@ -103,7 +84,7 @@ def current_session(request: Request, db: DbSession = Depends(get_db)) -> Accoun
     if record is None:
         raise HTTPException(401, "Your session has ended. Please sign in again.")
     expiry = record.expires_at
-    if expiry.replace(tzinfo=timezone.utc) <= utcnow():
+    if (expiry.replace(tzinfo=timezone.utc) if expiry.tzinfo is None else expiry) <= utcnow():
         db.delete(record)
         db.commit()
         raise HTTPException(401, "Your session has expired. Please sign in again.")
@@ -128,7 +109,7 @@ def register(
     payload: RegisterInput, request: Request, response: Response, db: DbSession = Depends(get_db)
 ):
     email = normalized_email(str(payload.email))
-    check_rate(request, email, registration=True)
+    auth_limits(request, email, registration=True)
     name = payload.display_name.strip()
     if not 1 <= len(name) <= 80:
         raise HTTPException(400, "Enter a display name of 1 to 80 characters.")
@@ -155,7 +136,7 @@ def login(
     payload: LoginInput, request: Request, response: Response, db: DbSession = Depends(get_db)
 ):
     email = normalized_email(str(payload.email))
-    check_rate(request, email)
+    auth_limits(request, email)
     user = db.scalar(select(User).where(User.email == email))
     valid = False
     if user:

@@ -134,3 +134,13 @@ class ChatMessage(Base):
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RateLimit(Base):
+    __tablename__ = "rate_limits"
+
+    scope: Mapped[str] = mapped_column(String(40), primary_key=True)
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_start: Mapped[int] = mapped_column(Integer, primary_key=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

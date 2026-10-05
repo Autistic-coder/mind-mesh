@@ -27,6 +27,7 @@ from .ml_service import (
 )
 from .models import Dataset, ModelMetadata, Prediction, TrainingConfig, TrainingRun, User
 from .models import Session as AccountSession
+from .rate_limits import user_limit
 
 router = APIRouter(prefix="/api/ml", tags=["machine-learning"])
 
@@ -131,6 +132,7 @@ def create_run(
     session: AccountSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    user_limit("training-run", session.user_id, get_settings().rate_train_minute)
     dataset = owned_dataset(db, session.user_id, payload.datasetId)
     if not dataset.stored_name:
         raise HTTPException(
@@ -263,6 +265,7 @@ def predict_single(
     session: AccountSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    user_limit("prediction", session.user_id, get_settings().rate_predict_minute)
     model = owned_model(db, session.user_id, model_id)
     metadata = json.loads(model.metadata_json)
     outputs = predict_records(load_pipeline(metadata), metadata, [payload.record])
@@ -277,6 +280,9 @@ async def predict_batch(
     session: AccountSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    user_limit(
+        "batch-prediction", session.user_id, get_settings().rate_batch_predict_minute
+    )
     model = owned_model(db, session.user_id, model_id)
     filename = file.filename or ""
     if not filename.lower().endswith(".csv") or Path(filename).name != filename:

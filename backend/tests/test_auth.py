@@ -111,7 +111,8 @@ def test_duplicate_validation_generic_credentials_and_rate_limit(api):
         "/api/auth/login", json={"email": "limited@example.com", "password": "wrong"}
     )
     assert limited.status_code == 429
-    assert limited.headers["Retry-After"] == "60"
+    assert 1 <= int(limited.headers["Retry-After"]) <= 60
+    assert "Please wait" in limited.json()["detail"]
 
 
 def test_csrf_and_origin_rejection(api):

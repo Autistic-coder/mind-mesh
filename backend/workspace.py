@@ -21,6 +21,7 @@ from .dataset_files import MAX_BYTES, inspect_upload, validate_filename
 from .ml_service import model_artifact_paths
 from .models import Conversation, Dataset, Project, TrainingConfig, TrainingRun, User, utcnow
 from .models import Session as AccountSession
+from .rate_limits import user_limit
 
 router = APIRouter(prefix="/api", tags=["workspace"])
 STORED_NAME = re.compile(r"[0-9a-f]{32}\.(csv|xlsx)\Z")
@@ -370,6 +371,7 @@ async def upload_dataset(
     session: AccountSession = Depends(require_csrf),
     db: DbSession = Depends(get_db),
 ):
+    user_limit("dataset-upload", session.user_id, get_settings().rate_upload_minute)
     filename = file.filename
     _stem, extension = validate_filename(filename)
     if project_id:

@@ -42,7 +42,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .config import get_settings
-from .database import make_engine
+from .database import get_engine
 from .models import Dataset, ModelMetadata, TrainingConfig, TrainingRun, utcnow
 
 MAX_TRAIN_ROWS = 100_000
@@ -375,64 +375,61 @@ def train_models(
 
 
 def execute_run(run_id: str) -> None:
-    engine = make_engine(get_settings().database_url)
+    engine = get_engine()
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
     written: list[Path] = []
-    try:
-        with SessionLocal() as db:
-            run = db.get(TrainingRun, run_id)
-            if run is None or run.status != "queued":
-                return
-            run.status = "running"
-            db.commit()
-            config_record = db.get(TrainingConfig, run.config_id)
-            dataset = db.get(Dataset, config_record.dataset_id)
-            config = json.loads(config_record.config_json)
-            try:
-                results, artifacts = train_models(dataset, config)
-                model_dir = get_settings().model_dir
-                model_dir.mkdir(parents=True, exist_ok=True)
-                for index, (algorithm, pipeline, metadata) in enumerate(artifacts):
-                    name = f"{uuid4().hex}.joblib"
-                    temporary = model_dir / f".{uuid4().hex}.part"
-                    destination = model_dir / name
-                    try:
-                        joblib.dump(pipeline, temporary)
-                        os.replace(temporary, destination)
-                    finally:
-                        temporary.unlink(missing_ok=True)
-                    written.append(destination)
-                    metadata["artifactName"] = name
-                    model = ModelMetadata(
-                        owner_id=run.owner_id, run_id=run.id, metadata_json=_json(metadata)
-                    )
-                    db.add(model)
-                    db.flush()
-                    results[index]["modelId"] = model.id
-                run.result_json = _json(
-                    {
-                        "models": results,
-                        "completedAt": utcnow().isoformat(),
-                        "evaluationNotice": "Metrics use the held-out test split. Repeated model selection on it does not make it an independent final assessment.",
-                    }
+    with SessionLocal() as db:
+        run = db.get(TrainingRun, run_id)
+        if run is None or run.status != "queued":
+            return
+        run.status = "running"
+        db.commit()
+        config_record = db.get(TrainingConfig, run.config_id)
+        dataset = db.get(Dataset, config_record.dataset_id)
+        config = json.loads(config_record.config_json)
+        try:
+            results, artifacts = train_models(dataset, config)
+            model_dir = get_settings().model_dir
+            model_dir.mkdir(parents=True, exist_ok=True)
+            for index, (algorithm, pipeline, metadata) in enumerate(artifacts):
+                name = f"{uuid4().hex}.joblib"
+                temporary = model_dir / f".{uuid4().hex}.part"
+                destination = model_dir / name
+                try:
+                    joblib.dump(pipeline, temporary)
+                    os.replace(temporary, destination)
+                finally:
+                    temporary.unlink(missing_ok=True)
+                written.append(destination)
+                metadata["artifactName"] = name
+                model = ModelMetadata(
+                    owner_id=run.owner_id, run_id=run.id, metadata_json=_json(metadata)
                 )
-                run.status = "completed"
-                db.commit()
-            except Exception as error:
-                db.rollback()
-                run = db.get(TrainingRun, run_id)
-                run.status = "failed"
-                if isinstance(error, ValueError):
-                    message = str(error)[:500]
-                else:
-                    logger.exception("Training run %s failed", run_id)
-                    message = "Training failed unexpectedly. Check the selected data and try again."
-                run.result_json = _json({"error": message, "failedAt": utcnow().isoformat()})
-                db.commit()
-                for path in written:
-                    path.unlink(missing_ok=True)
-    finally:
-        engine.dispose()
+                db.add(model)
+                db.flush()
+                results[index]["modelId"] = model.id
+            run.result_json = _json(
+                {
+                    "models": results,
+                    "completedAt": utcnow().isoformat(),
+                    "evaluationNotice": "Metrics use the held-out test split. Repeated model selection on it does not make it an independent final assessment.",
+                }
+            )
+            run.status = "completed"
+            db.commit()
+        except Exception as error:
+            db.rollback()
+            run = db.get(TrainingRun, run_id)
+            run.status = "failed"
+            if isinstance(error, ValueError):
+                message = str(error)[:500]
+            else:
+                logger.exception("Training run %s failed", run_id)
+                message = "Training failed unexpectedly. Check the selected data and try again."
+            run.result_json = _json({"error": message, "failedAt": utcnow().isoformat()})
+            db.commit()
+            for path in written:
+                path.unlink(missing_ok=True)
 
 
 def submit_run(run_id: str) -> None:
@@ -440,22 +437,16 @@ def submit_run(run_id: str) -> None:
 
 
 def recover_interrupted_runs() -> None:
-    engine = make_engine(get_settings().database_url)
-    try:
-        with Session(engine) as db:
-            runs = db.scalars(
-                select(TrainingRun).where(TrainingRun.status.in_(["queued", "running"]))
-            ).all()
-            for run in runs:
-                run.status = "interrupted"
-                run.result_json = _json(
-                    {
-                        "error": "Training was interrupted by an application restart. Start a new run."
-                    }
-                )
-            db.commit()
-    finally:
-        engine.dispose()
+    with Session(get_engine()) as db:
+        runs = db.scalars(
+            select(TrainingRun).where(TrainingRun.status.in_(["queued", "running"]))
+        ).all()
+        for run in runs:
+            run.status = "interrupted"
+            run.result_json = _json(
+                {"error": "Training was interrupted by an application restart. Start a new run."}
+            )
+        db.commit()
 
 
 def artifact_path(metadata: dict) -> Path:
