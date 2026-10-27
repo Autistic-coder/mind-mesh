@@ -83,6 +83,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (active.current) dispatch({ type: 'project/delete', id })
   }
 
+  async function updateProject(id: string, name: string, description: string): Promise<Project> {
+    const project = await request<Project>(`projects/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, description }),
+    })
+    if (active.current) dispatch({ type: 'project/update', project })
+    return project
+  }
+
   async function uploadDataset(
     file: File,
     sheetName?: string,
@@ -166,6 +175,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         createProject,
+        updateProject,
         deleteProject,
         uploadDataset,
         assignDataset,

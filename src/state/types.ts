@@ -42,6 +42,7 @@ export interface Workspace {
 export type Action =
   | { type: 'workspace/replace'; workspace: Workspace }
   | { type: 'project/add'; project: Project }
+  | { type: 'project/update'; project: Project }
   | { type: 'project/delete'; id: string }
   | { type: 'dataset/add'; dataset: Dataset }
   | { type: 'dataset/delete'; id: string }

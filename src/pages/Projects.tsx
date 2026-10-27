@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useWorkspace } from '../state/store'
 import { Arrow, Confirm, Empty, PageTitle } from '../components/UI'
 import type { Project } from '../state/types'
+import { ProjectForm } from '../components/ProjectForm'
 
 export function ProjectTable({ projects }: { projects: Project[] }) {
   const { state } = useWorkspace()
@@ -79,6 +80,7 @@ export function ProjectDetails() {
   const { id } = useParams()
   const { state, deleteProject } = useWorkspace()
   const [confirm, setConfirm] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -100,9 +102,14 @@ export function ProjectDetails() {
         title={project.name}
         description={project.description || 'Ready for your data.'}
         action={
-          <button className="text-link" onClick={() => setConfirm(true)}>
-            Delete project
-          </button>
+          <div className="flex gap-5">
+            <button className="text-link" onClick={() => setEditing(true)}>
+              Edit project
+            </button>
+            <button className="text-link" onClick={() => setConfirm(true)}>
+              Delete project
+            </button>
+          </div>
         }
       />
       <div className="detail-sections">
@@ -145,6 +152,7 @@ export function ProjectDetails() {
           )}
         </section>
       </div>
+      {editing && <ProjectForm project={project} onClose={() => setEditing(false)} />}
       {confirm && (
         <Confirm
           title={`Delete ${project.name}?`}

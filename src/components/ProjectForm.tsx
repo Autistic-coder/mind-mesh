@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspace } from '../state/store'
 import { Arrow, Modal } from './UI'
+import type { Project } from '../state/types'
 
-export function ProjectForm({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+export function ProjectForm({ onClose, project }: { onClose: () => void; project?: Project }) {
+  const [name, setName] = useState(project?.name ?? '')
+  const [description, setDescription] = useState(project?.description ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const { createProject } = useWorkspace()
+  const { createProject, updateProject } = useWorkspace()
   const navigate = useNavigate()
   return (
-    <Modal title="Make room for an idea." onClose={onClose}>
+    <Modal title={project ? 'Edit project.' : 'Make room for an idea.'} onClose={onClose}>
       <p className="muted my-5 text-sm">Start a project, bring in your data, and explore.</p>
       <form
         className="grid gap-5"
@@ -21,9 +22,11 @@ export function ProjectForm({ onClose }: { onClose: () => void }) {
           setError('')
           setBusy(true)
           try {
-            const project = await createProject(name.trim(), description.trim())
+            const saved = project
+              ? await updateProject(project.id, name.trim(), description.trim())
+              : await createProject(name.trim(), description.trim())
             onClose()
-            navigate(`/projects/${project.id}`)
+            navigate(`/projects/${saved.id}`)
           } catch (issue) {
             setError(issue instanceof Error ? issue.message : 'Unable to create project.')
           } finally {
@@ -63,7 +66,7 @@ export function ProjectForm({ onClose }: { onClose: () => void }) {
             Cancel
           </button>
           <button className="button primary" disabled={!name.trim() || busy}>
-            {busy ? 'Creating…' : 'Create project'} <Arrow diagonal />
+            {busy ? 'Saving…' : project ? 'Save project' : 'Create project'} <Arrow diagonal />
           </button>
         </div>
       </form>

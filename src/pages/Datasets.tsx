@@ -559,7 +559,8 @@ export function Datasets() {
             }
           }}
         >
-          This removes its preview, project assignment, and stored file from your account.
+          This removes the dataset, original file, training runs, fitted models, and prediction
+          history that depend on it. The project itself remains.
           {error && (
             <span className="error block mt-4" role="alert">
               {error}

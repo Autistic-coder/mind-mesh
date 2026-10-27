@@ -7,6 +7,11 @@ export function reducer(state: Workspace, action: Action): Workspace {
       return action.workspace
     case 'project/add':
       return { ...state, projects: [...state.projects, action.project] }
+    case 'project/update':
+      return {
+        ...state,
+        projects: state.projects.map((p) => (p.id === action.project.id ? action.project : p)),
+      }
     case 'project/delete':
       return {
         ...state,
@@ -34,6 +39,7 @@ export function reducer(state: Workspace, action: Action): Workspace {
 export const WorkspaceContext = createContext<{
   state: Workspace
   createProject: (name: string, description: string) => Promise<Project>
+  updateProject: (id: string, name: string, description: string) => Promise<Project>
   deleteProject: (id: string) => Promise<void>
   uploadDataset: (
     file: File,
