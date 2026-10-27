@@ -48,6 +48,7 @@ def make_engine(database_url: str | None = None) -> Engine:
         max_overflow=settings.max_overflow,
         pool_timeout=10,
         pool_recycle=300,
+        hide_parameters=True,
         connect_args={"connect_timeout": 10, "options": "-csearch_path=mindmesh,public"},
     )
 

@@ -28,6 +28,7 @@ class Settings:
     origin: str
     secure_cookies: bool
     trust_proxy_headers: bool
+    trusted_proxy_ips: tuple[str, ...]
     pool_size: int
     max_overflow: int
     rate_register_hour: int
@@ -59,6 +60,11 @@ def get_settings() -> Settings:
         origin=os.getenv("MINDMESH_ORIGIN", "http://127.0.0.1:5173").rstrip("/"),
         secure_cookies=os.getenv("MINDMESH_SECURE_COOKIES", "false").lower() == "true",
         trust_proxy_headers=os.getenv("MINDMESH_TRUST_PROXY_HEADERS", "false").lower() == "true",
+        trusted_proxy_ips=tuple(
+            value.strip()
+            for value in os.getenv("MINDMESH_TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(",")
+            if value.strip()
+        ),
         pool_size=_integer("MINDMESH_DB_POOL_SIZE", 5),
         max_overflow=_integer("MINDMESH_DB_MAX_OVERFLOW", 5),
         rate_register_hour=_integer("MINDMESH_RATE_REGISTER_PER_HOUR", 20),

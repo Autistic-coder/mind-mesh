@@ -17,7 +17,8 @@ from .models import RateLimit
 
 def client_address(request: Request) -> str:
     address = request.client.host if request.client else "unknown"
-    if get_settings().trust_proxy_headers:
+    settings = get_settings()
+    if settings.trust_proxy_headers and address in settings.trusted_proxy_ips:
         forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
         try:
             address = str(ipaddress.ip_address(forwarded))
