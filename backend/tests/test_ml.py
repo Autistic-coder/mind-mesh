@@ -120,6 +120,9 @@ def test_classification_saved_predictions_isolation_and_cleanup(api):
 
     selected = write(client, csrf, "POST", f"/api/ml/models/{model_id}/select")
     assert selected.status_code == 200 and selected.json()["selected"] is True
+    details = client.get(f"/api/ml/models/{model_id}/details")
+    assert details.status_code == 200
+    assert details.json()["dataset"]["id"] == dataset["id"]
     single = write(
         client,
         csrf,
@@ -184,6 +187,7 @@ def test_classification_saved_predictions_isolation_and_cleanup(api):
             f"/api/ml/datasets/{dataset['id']}/schema",
             f"/api/ml/runs/{run['id']}",
             f"/api/ml/models/{model_id}",
+            f"/api/ml/models/{model_id}/details",
         ]:
             assert other.get(path).status_code == 404
         assert (
@@ -197,6 +201,11 @@ def test_classification_saved_predictions_isolation_and_cleanup(api):
             == 404
         )
         assert write(other, other_csrf, "DELETE", f"/api/ml/runs/{run['id']}").status_code == 404
+        assert write(other, other_csrf, "DELETE", f"/api/ml/models/{model_id}").status_code == 404
+
+    assert write(client, csrf, "DELETE", f"/api/ml/models/{model_id}").status_code == 204
+    assert client.get(f"/api/ml/models/{model_id}").status_code == 404
+    assert len(list((tmp_path / "models").glob("*.joblib"))) == 1
 
     assert write(client, csrf, "DELETE", f"/api/datasets/{dataset['id']}").status_code == 204
     assert not list((tmp_path / "models").glob("*.joblib"))

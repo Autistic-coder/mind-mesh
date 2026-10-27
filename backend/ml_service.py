@@ -492,9 +492,13 @@ def prediction_frame(records: list[dict], metadata: dict) -> pd.DataFrame:
     for name in metadata["numericFeatures"]:
         original = frame[name]
         frame[name] = pd.to_numeric(original.where(~original.map(_missing)), errors="coerce")
-        invalid = ~original.map(_missing) & frame[name].isna()
+        invalid = ~original.map(_missing) & (frame[name].isna() | ~np.isfinite(frame[name]))
         if invalid.any():
-            raise HTTPException(400, f"Feature '{name}' needs numeric values.")
+            row_number = int(np.flatnonzero(invalid.to_numpy())[0]) + 2
+            raise HTTPException(
+                400,
+                f"Feature '{name}' needs finite numeric values (CSV row {row_number}, including header).",
+            )
     for name in metadata["categoricalFeatures"]:
         frame[name] = frame[name].map(lambda value: np.nan if _missing(value) else str(value))
     return frame

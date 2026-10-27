@@ -135,6 +135,11 @@ export function ModelLab() {
   const [history, setHistory] = useState<PredictionHistory[]>([])
   const [selectedRun, setSelectedRun] = useState<TrainingRun | null>(null)
   const [selectedModelId, setSelectedModelId] = useState('')
+  const [modelDetails, setModelDetails] = useState<{
+    dataset: { name: string }
+    config: RunConfig
+    result: ModelResult | null
+  } | null>(null)
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [prediction, setPrediction] = useState<Record<string, unknown> | null>(null)
   const [batchFile, setBatchFile] = useState<File | null>(null)
@@ -389,9 +394,34 @@ export function ModelLab() {
         })),
       )
       setSelectedModelId(selected.id)
+      setModelDetails(await request(`ml/models/${encodeURIComponent(selected.id)}/details`))
       setNotice(`${LABELS[selected.algorithm]} is selected for predictions.`)
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'Unable to select this model.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  async function removeModel() {
+    if (
+      !selectedModelId ||
+      !window.confirm(
+        'Delete this fitted model and its prediction history? The dataset and other models remain.',
+      )
+    )
+      return
+    setBusy('delete-model')
+    setError('')
+    try {
+      await request(`ml/models/${encodeURIComponent(selectedModelId)}`, { method: 'DELETE' })
+      setSelectedModelId('')
+      setPrediction(null)
+      setModelDetails(null)
+      setSelectedRun(null)
+      await refreshLibrary()
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Unable to delete this model.')
     } finally {
       setBusy('')
     }
@@ -838,12 +868,70 @@ export function ModelLab() {
         {step === 5 && (
           <>
             <h2 id="lab-step-5">Predict with the saved pipeline.</h2>
+            <label className="field lab-field">
+              <span>Saved model</span>
+              <select
+                value={selectedModelId}
+                disabled={!!busy}
+                onChange={(event) => {
+                  if (event.target.value) void saveModel(event.target.value)
+                }}
+              >
+                <option value="">Choose a saved model</option>
+                {models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {LABELS[model.algorithm]} — {model.target} —{' '}
+                    {new Date(model.createdAt).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+              <small className="field-help">
+                Reuse any fitted model in this account without retraining.
+              </small>
+            </label>
             {!selectedModel ? (
               <Empty title="Select a completed model first.">
                 Open Results and choose the model you want to reuse.
               </Empty>
             ) : (
               <>
+                <details className="advanced-settings">
+                  <summary>Model details and management</summary>
+                  <p>
+                    Created {new Date(selectedModel.createdAt).toLocaleString()}. Inputs:{' '}
+                    {selectedModel.features.join(', ')}.
+                  </p>
+                  {modelDetails && (
+                    <>
+                      <p>
+                        Dataset: {modelDetails.dataset.name}. Test rows:{' '}
+                        {Math.round(modelDetails.config.testSize * 100)}%. Random seed:{' '}
+                        {modelDetails.config.randomSeed}.
+                      </p>
+                      <p>
+                        Preparation: numeric median, most frequent category, encoding; fitted only
+                        on training rows. Linear models also scale numeric inputs.
+                      </p>
+                      {modelDetails.result && (
+                        <p>
+                          Evaluation:{' '}
+                          {Object.entries(modelDetails.result.metrics)
+                            .map(
+                              ([key, value]) => `${displayMetric(key)}: ${metricValue(key, value)}`,
+                            )
+                            .join(' · ')}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <button
+                    className="text-link"
+                    disabled={!!busy}
+                    onClick={() => void removeModel()}
+                  >
+                    Delete saved model
+                  </button>
+                </details>
                 <p className="lab-help">
                   Using {LABELS[selectedModel.algorithm]} to predict{' '}
                   <strong>{selectedModel.target}</strong>. Blank feature values use the saved

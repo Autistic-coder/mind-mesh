@@ -246,6 +246,57 @@ def get_model(model_id: str, user: User = Depends(current_user), db: Session = D
     return public_metadata(owned_model(db, user.id, model_id))
 
 
+@router.get("/models/{model_id}/details")
+def model_details(model_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    model = owned_model(db, user.id, model_id)
+    run = owned_run(db, user.id, model.run_id)
+    config = db.get(TrainingConfig, run.config_id)
+    dataset = owned_dataset(db, user.id, config.dataset_id)
+    result = next(
+        (
+            item
+            for item in json.loads(run.result_json or "{}").get("models", [])
+            if item["modelId"] == model.id
+        ),
+        None,
+    )
+    return {
+        "model": public_metadata(model),
+        "dataset": {"id": dataset.id, "name": dataset.name},
+        "config": json.loads(config.config_json),
+        "result": result,
+    }
+
+
+@router.delete("/models/{model_id}", status_code=204)
+def delete_model(
+    model_id: str, session: AccountSession = Depends(require_csrf), db: Session = Depends(get_db)
+):
+    from .workspace import discard_files, quarantine_paths, restore_files
+
+    model = owned_model(db, session.user_id, model_id)
+    run = owned_run(db, session.user_id, model.run_id)
+    metadata = json.loads(model.metadata_json)
+    from .ml_service import ARTIFACT_NAME
+
+    name = metadata.get("artifactName", "")
+    paths = [get_settings().model_dir / name] if ARTIFACT_NAME.fullmatch(name) else []
+    moved = quarantine_paths(paths)
+    try:
+        results = json.loads(run.result_json or "{}")
+        results["models"] = [
+            item for item in results.get("models", []) if item["modelId"] != model.id
+        ]
+        run.result_json = json.dumps(results)
+        db.delete(model)
+        db.commit()
+    except Exception:
+        db.rollback()
+        restore_files(moved)
+        raise
+    discard_files(moved)
+
+
 @router.post("/models/{model_id}/select")
 def select_model(
     model_id: str,
@@ -293,7 +344,7 @@ def predict_single(
 
 
 @router.post("/models/{model_id}/predict-batch")
-async def predict_batch(
+def predict_batch(
     model_id: str,
     file: UploadFile = File(...),
     session: AccountSession = Depends(require_csrf),
@@ -304,8 +355,8 @@ async def predict_batch(
     filename = file.filename or ""
     if not filename.lower().endswith(".csv") or Path(filename).name != filename:
         raise HTTPException(400, "Choose a CSV batch file with a valid filename.")
-    contents = await file.read(MAX_BATCH_BYTES + 1)
-    await file.close()
+    contents = file.file.read(MAX_BATCH_BYTES + 1)
+    file.file.close()
     if len(contents) > MAX_BATCH_BYTES:
         raise HTTPException(400, "Choose a batch CSV no larger than 5 MB.")
     try:
@@ -315,7 +366,17 @@ async def predict_batch(
             raise ValueError
         if len(set(reader.fieldnames)) != len(reader.fieldnames):
             raise HTTPException(400, "Batch CSV headers must be unique.")
-        records = list(reader)
+        records = []
+        for index, row in enumerate(reader, start=2):
+            if None in row or any(value is None for value in row.values()):
+                raise HTTPException(
+                    400, f"CSV row {index} has a different number of cells than the header."
+                )
+            records.append(row)
+            if len(records) > MAX_BATCH_ROWS:
+                raise HTTPException(
+                    400, f"Batch prediction supports up to {MAX_BATCH_ROWS:,} rows."
+                )
     except (UnicodeDecodeError, csv.Error, ValueError) as error:
         raise HTTPException(400, "This batch CSV could not be read as UTF-8.") from error
     if not records:
@@ -338,14 +399,18 @@ async def predict_batch(
         "prediction",
         *[f"probability_{label}" for label in probability_labels],
     ]
+    if len(set(fields)) != len(fields):
+        raise HTTPException(
+            400, "Remove input columns named prediction or probability_<category> before exporting."
+        )
     writer = csv.DictWriter(destination, fieldnames=fields)
-    writer.writeheader()
+    writer.writerow({name: safe_csv_cell(name) for name in fields})
     for source, output in zip(records, outputs, strict=True):
         row = {**source, "prediction": output["prediction"]}
         row.update(
             {f"probability_{label}": output["probabilities"][label] for label in probability_labels}
         )
-        writer.writerow(row)
+        writer.writerow({key: safe_csv_cell(value) for key, value in row.items()})
     return Response(
         destination.getvalue().encode("utf-8"),
         media_type="text/csv",
@@ -354,6 +419,12 @@ async def predict_batch(
             "X-MindMesh-Prediction-Id": history.id,
         },
     )
+
+
+def safe_csv_cell(value):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
 
 
 @router.get("/predictions")
