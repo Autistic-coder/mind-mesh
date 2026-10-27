@@ -53,7 +53,7 @@ class RunInput(BaseModel):
 
 class SinglePredictionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    record: dict[str, str | int | float | bool | None]
+    record: dict[str, str | int | float | bool | None] = Field(max_length=50)
 
 
 def owned_dataset(db: Session, owner_id: str, dataset_id: str) -> Dataset:
@@ -385,13 +385,6 @@ def predict_batch(
         raise HTTPException(400, f"Batch prediction supports up to {MAX_BATCH_ROWS:,} rows.")
     metadata = json.loads(model.metadata_json)
     outputs = predict_records(load_pipeline(metadata), metadata, records)
-    history = save_prediction(
-        db,
-        session.user_id,
-        model.id,
-        {"filename": filename, "rows": records},
-        outputs,
-    )
     destination = io.StringIO(newline="")
     probability_labels = list(outputs[0].get("probabilities", {}))
     fields = [
@@ -411,6 +404,9 @@ def predict_batch(
             {f"probability_{label}": output["probabilities"][label] for label in probability_labels}
         )
         writer.writerow({key: safe_csv_cell(value) for key, value in row.items()})
+    history = save_prediction(
+        db, session.user_id, model.id, {"filename": filename, "rows": records}, outputs
+    )
     return Response(
         destination.getvalue().encode("utf-8"),
         media_type="text/csv",

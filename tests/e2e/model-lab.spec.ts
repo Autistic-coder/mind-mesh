@@ -76,6 +76,11 @@ test('trains, saves, predicts, downloads a batch, and reopens classification res
   await expect(page.getByText('Selected for predictions')).toBeVisible()
   await page.getByRole('button', { name: /6 Predictions/ }).click()
   await expect(page.getByText(/Using Logistic regression/)).toBeVisible()
+  await page.getByText('Model details and management', { exact: true }).click()
+  await expect(page.getByText(/Dataset: customer-churn/)).toBeVisible()
+  page.once('dialog', (dialog) => void dialog.accept())
+  await page.getByRole('button', { name: 'Delete saved model' }).click()
+  await expect(page.getByLabel('Saved model')).toHaveValue('')
 
   await page.goto('/account')
   await page.getByRole('button', { name: 'Sign out' }).click()

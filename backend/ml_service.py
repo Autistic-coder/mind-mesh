@@ -433,7 +433,7 @@ def execute_run(run_id: str) -> None:
             if isinstance(error, ValueError):
                 message = str(error)[:500]
             else:
-                logger.exception("Training run %s failed", run_id)
+                logger.error("Training run %s failed (%s)", run_id, type(error).__name__)
                 message = "Training failed unexpectedly. Check the selected data and try again."
             run.result_json = _json({"error": message, "failedAt": utcnow().isoformat()})
             db.commit()

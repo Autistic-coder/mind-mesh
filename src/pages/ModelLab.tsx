@@ -277,6 +277,24 @@ export function ModelLab() {
 
   const selectedModel = models.find((model) => model.id === selectedModelId)
   useEffect(() => {
+    let active = true
+    setModelDetails(null)
+    if (selectedModelId)
+      void request<{ dataset: { name: string }; config: RunConfig; result: ModelResult | null }>(
+        `ml/models/${encodeURIComponent(selectedModelId)}/details`,
+      )
+        .then((details) => {
+          if (active) setModelDetails(details)
+        })
+        .catch((issue) => {
+          if (active)
+            setError(issue instanceof Error ? issue.message : 'Unable to load model details.')
+        })
+    return () => {
+      active = false
+    }
+  }, [selectedModelId, request])
+  useEffect(() => {
     if (!selectedRun || selectedModelId) return
     const saved = models.find((model) => model.runId === selectedRun.id && model.selected)
     if (saved) setSelectedModelId(saved.id)
@@ -394,7 +412,6 @@ export function ModelLab() {
         })),
       )
       setSelectedModelId(selected.id)
-      setModelDetails(await request(`ml/models/${encodeURIComponent(selected.id)}/details`))
       setNotice(`${LABELS[selected.algorithm]} is selected for predictions.`)
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'Unable to select this model.')
@@ -452,6 +469,8 @@ export function ModelLab() {
     if (!selectedModel || !batchFile || !csrfToken) return
     setBusy('batch')
     setError('')
+    const controller = new AbortController()
+    controllers.current.add(controller)
     try {
       const form = new FormData()
       form.append('file', batchFile)
@@ -463,6 +482,7 @@ export function ModelLab() {
           cache: 'no-store',
           headers: { 'X-CSRF-Token': csrfToken },
           body: form,
+          signal: controller.signal,
         },
       )
       if (response.status === 401) void refresh()
@@ -471,6 +491,10 @@ export function ModelLab() {
         throw new Error(typeof body?.detail === 'string' ? body.detail : 'Batch prediction failed.')
       }
       const url = URL.createObjectURL(await response.blob())
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
       const link = document.createElement('a')
       link.href = url
       link.download = 'mindmesh-predictions.csv'
@@ -481,6 +505,7 @@ export function ModelLab() {
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : 'Unable to predict this batch.')
     } finally {
+      controllers.current.delete(controller)
       setBusy('')
     }
   }

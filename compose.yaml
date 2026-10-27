@@ -1,0 +1,17 @@
+services:
+  mindmesh:
+    build: .
+    env_file: .env
+    environment:
+      MINDMESH_ENV: production
+      MINDMESH_SERVE_FRONTEND: 'true'
+      MINDMESH_UPLOAD_DIR: /data/uploads
+      MINDMESH_MODEL_DIR: /data/models
+    ports:
+      - '127.0.0.1:8000:8000'
+    volumes:
+      - mindmesh-data:/data
+    restart: unless-stopped
+    stop_grace_period: 60s
+volumes:
+  mindmesh-data:

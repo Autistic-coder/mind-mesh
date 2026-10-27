@@ -1,7 +1,9 @@
 """MindMesh API entry point."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -87,3 +89,9 @@ def ready():
     with get_engine().connect() as connection:
         connection.execute(text("SELECT id FROM training_runs LIMIT 0"))
     return {"status": "ready"}
+
+
+if os.getenv("MINDMESH_SERVE_FRONTEND", "false").lower() == "true":
+    from .frontend import install_frontend
+
+    install_frontend(app, Path(__file__).resolve().parent.parent / "dist")

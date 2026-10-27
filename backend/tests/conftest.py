@@ -12,6 +12,9 @@ from backend.main import app
 def api(tmp_path, monkeypatch):
     url = f"sqlite:///{(tmp_path / 'accounts.db').as_posix()}"
     monkeypatch.setenv("MINDMESH_ALLOW_SQLITE", "true")
+    monkeypatch.setenv("MINDMESH_ENV", "test")
+    monkeypatch.delenv("MINDMESH_MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("MINDMESH_APP_DATABASE_ROLE", raising=False)
     monkeypatch.setenv("MINDMESH_DATABASE_URL", url)
     monkeypatch.setenv("MINDMESH_UPLOAD_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("MINDMESH_MODEL_DIR", str(tmp_path / "models"))

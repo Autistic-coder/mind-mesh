@@ -19,7 +19,11 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=config.get_main_option("sqlalchemy.url"), target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=config.get_main_option("sqlalchemy.url"),
+        target_metadata=target_metadata,
+        literal_binds=True,
+    )
     with context.begin_transaction():
         if config.get_main_option("sqlalchemy.url").startswith("postgresql"):
             context.execute("CREATE SCHEMA IF NOT EXISTS mindmesh")
@@ -28,13 +32,19 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = engine_from_config(config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool)
+    engine = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
     if engine.dialect.name == "sqlite":
+
         @event.listens_for(engine, "connect")
         def enable_foreign_keys(connection, _record):
             cursor = connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
+
     with engine.connect() as connection:
         if engine.dialect.name == "postgresql":
             connection.exec_driver_sql("CREATE SCHEMA IF NOT EXISTS mindmesh")

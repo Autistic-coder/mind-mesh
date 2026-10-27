@@ -54,6 +54,20 @@ def get_settings() -> Settings:
             "SQLite is supported only for tests and the one-time import source. "
             "Set MINDMESH_DATABASE_URL to PostgreSQL for the application."
         )
+    if os.getenv("MINDMESH_ENV", "development") == "production":
+        if allow_sqlite or not database_url.startswith(
+            ("postgres://", "postgresql://", "postgresql+psycopg://")
+        ):
+            raise RuntimeError("Production requires PostgreSQL and disallows SQLite.")
+        if not os.getenv("MINDMESH_ORIGIN", "").startswith("https://"):
+            raise RuntimeError("Production requires an HTTPS MINDMESH_ORIGIN.")
+        if os.getenv("MINDMESH_SECURE_COOKIES", "false").lower() != "true":
+            raise RuntimeError("Production requires MINDMESH_SECURE_COOKIES=true.")
+        if not any(
+            value in database_url
+            for value in ("sslmode=require", "sslmode=verify-ca", "sslmode=verify-full")
+        ):
+            raise RuntimeError("Production requires an encrypted database connection.")
     return Settings(
         database_url=database_url,
         upload_dir=Path(os.getenv("MINDMESH_UPLOAD_DIR", str(ROOT / "var" / "uploads"))).resolve(),

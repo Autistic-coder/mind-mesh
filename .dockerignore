@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+.venv
+.local
+node_modules
+dist
+var
+test-results
+playwright-report
+**/__pycache__
+**/.pytest_cache
+*.db
+*.sqlite*

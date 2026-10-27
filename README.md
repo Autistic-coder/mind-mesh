@@ -22,20 +22,31 @@ direct connection or Session pooler URI into `MINDMESH_DATABASE_URL`. Keep the U
 Use the Session pooler when the machine cannot connect over IPv6. Do not use a transaction pooler
 for migrations.
 
-Start the API in the first PowerShell terminal:
+One-time Python setup from `C:\Users\Vaibhav\Desktop\ai ml\ai ml project`:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
 .\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-Start the frontend in a second terminal:
+One-time frontend setup (the local Node path is optional if Node is installed globally):
 
 ```powershell
-npm ci
-npm run dev
+$env:PATH = "$(Get-Location)\.local\node-v24.21.0-win-x64;$env:PATH"
+npm.cmd ci
+```
+
+Start the backend whenever needed (terminal 1, repository root):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-backend.ps1
+```
+
+Start the frontend (terminal 2, same repository root):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-frontend.ps1
 ```
 
 Open **http://127.0.0.1:5173**. Vite proxies `/api` to the backend, so browser cookies and CSRF
@@ -107,5 +118,17 @@ Set `MINDMESH_TEST_POSTGRES_URL` to a disposable PostgreSQL database before the 
 to include destructive PostgreSQL migration and concurrency checks. Without it, those tests are
 reported as skipped rather than being simulated with SQLite.
 
-MindMesh does not include Supabase Auth, Supabase Storage, direct browser database access, an LLM,
-hyperparameter search, causal analysis, deployment, or production model monitoring.
+Ask MindMesh uses a real OpenAI Responses API integration when `OPENAI_API_KEY` is configured on
+the server. Without a key, the page honestly shows static help. Optional context is previewed,
+explicitly shared, and resolved with server ownership checks; rows, files, and account details are
+excluded. Conversations can be reopened or deleted privately.
+
+See [Beginner guide](docs/beginner-guide.md), [Teacher demo](docs/demo-guide.md),
+[Deployment](docs/deployment.md), and [Release verification](docs/release-verification.md).
+Production uses a single Docker container serving the frontend and API together, Supabase PostgreSQL,
+and a persistent file volume behind HTTPS. This repository prepares deployment without provisioning
+or publishing it. Both development services must run locally; no combined launcher is required.
+
+MindMesh does not use Supabase Auth, Supabase Storage, or direct browser database access. Training
+supports one API process and one training thread; production monitoring and distributed workers are
+outside this deployment.

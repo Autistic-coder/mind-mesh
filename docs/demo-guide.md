@@ -1,6 +1,6 @@
 # MindMesh teacher demo guide
 
-This guide presents the complete local workflow on **6 October 2026**. MindMesh trains real
+This guide presents the complete local workflow. MindMesh trains real
 scikit-learn models on complete server-stored tabular data. The included datasets are synthetic
 demonstrations and do not establish real-world reliability.
 
@@ -24,8 +24,8 @@ npm.cmd ci
 ```
 
 The Python requirements include pandas, NumPy, SciPy, joblib, and scikit-learn. Do not commit files
-created under `var/`; that ignored directory holds the local database, private uploads, and fitted
-models.
+created under `var/`; that ignored directory holds legacy SQLite backups, private uploads, and fitted
+models. Configure Supabase first using [Supabase setup](supabase.md); PostgreSQL holds current records.
 
 ## 2. Start the backend and frontend
 

@@ -23,6 +23,16 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def postgres(monkeypatch):
+    from backend.config import get_settings
+    from backend.database import normalized_database_url
+
+    if normalized_database_url(POSTGRES_URL or "") == normalized_database_url(
+        get_settings().database_url
+    ):
+        pytest.fail("Refusing destructive tests: test URL matches the application database URL.")
+    monkeypatch.setenv("MINDMESH_ENV", "test")
+    monkeypatch.delenv("MINDMESH_MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("MINDMESH_APP_DATABASE_ROLE", raising=False)
     monkeypatch.setenv("MINDMESH_DATABASE_URL", POSTGRES_URL or "")
     dispose_engines()
     engine = make_engine(POSTGRES_URL)
