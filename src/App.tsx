@@ -8,12 +8,14 @@ import { Overview } from './pages/Overview'
 import { Projects, ProjectDetails } from './pages/Projects'
 import { Datasets } from './pages/Datasets'
 import { ModelLab } from './pages/ModelLab'
+import { Assistant } from './pages/Assistant'
 
 const navigation = [
   ['/', 'Overview'],
   ['/projects', 'Projects'],
   ['/datasets', 'Datasets'],
   ['/model-lab', 'Model lab'],
+  ['/assistant', 'Ask MindMesh'],
 ]
 
 export default function App() {
@@ -120,6 +122,7 @@ export default function App() {
             <Route path="/projects/:id" element={<ProjectDetails />} />
             <Route path="/datasets" element={<Datasets />} />
             <Route path="/model-lab" element={<ModelLab />} />
+            <Route path="/assistant" element={<Assistant />} />
             <Route
               path="*"
               element={

@@ -1684,6 +1684,20 @@ progress::-moz-progress-bar {
 }
 
 /* Guided model workflow */
+.assistant-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.context-preview {
+  max-height: 260px;
+  overflow: auto;
+  font-size: 12px;
+  margin: 18px 0;
+  padding: 12px;
+  background: var(--paper);
+}
 .model-lab {
   max-width: 1240px;
   margin: 0 auto;

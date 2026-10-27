@@ -15,5 +15,7 @@ with tempfile.TemporaryDirectory(prefix="mindmesh-e2e-") as directory:
     os.environ["MINDMESH_UPLOAD_DIR"] = str(root / "uploads")
     os.environ["MINDMESH_MODEL_DIR"] = str(root / "models")
     os.environ["MINDMESH_ORIGIN"] = "http://127.0.0.1:4173"
+    # Browser tests never incur provider charges, even if the developer .env has a key.
+    os.environ["OPENAI_API_KEY"] = ""
     command.upgrade(Config("alembic.ini"), "head")
     uvicorn.run("backend.main:app", host="127.0.0.1", port=8001, access_log=False)

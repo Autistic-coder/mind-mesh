@@ -38,6 +38,7 @@ class Settings:
     rate_train_minute: int
     rate_predict_minute: int
     rate_batch_predict_minute: int
+    rate_assistant_minute: int
 
 
 def get_settings() -> Settings:
@@ -74,4 +75,5 @@ def get_settings() -> Settings:
         rate_train_minute=_integer("MINDMESH_RATE_TRAIN_PER_MINUTE", 5),
         rate_predict_minute=_integer("MINDMESH_RATE_PREDICT_PER_MINUTE", 60),
         rate_batch_predict_minute=_integer("MINDMESH_RATE_BATCH_PREDICT_PER_MINUTE", 10),
+        rate_assistant_minute=_integer("MINDMESH_RATE_ASSISTANT_PER_MINUTE", 6),
     )

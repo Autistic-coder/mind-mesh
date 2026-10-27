@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from .assistant import router as assistant_router
 from .auth import router as auth_router
 from .config import get_settings
 from .database import get_engine
@@ -31,6 +32,7 @@ app = FastAPI(title="MindMesh API", docs_url=None, redoc_url=None, lifespan=life
 app.include_router(auth_router)
 app.include_router(workspace_router)
 app.include_router(ml_router)
+app.include_router(assistant_router)
 
 
 @app.exception_handler(SQLAlchemyError)
