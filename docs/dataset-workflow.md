@@ -38,11 +38,13 @@ not accepted.
    enforcing the byte limit.
 5. The server parses the staged file and calculates counts, inferred types, missing values, and the
    preview from the complete selected dataset.
-6. The staged file is renamed to a server-generated name, and its metadata is committed to SQLite.
+6. The staged file is renamed to a server-generated name; metadata and complete bytes commit to PostgreSQL.
    A failed validation or database commit removes the staged or renamed file.
 
-The default database is `var/mindmesh.db`; complete files are stored in `var/uploads`. Both paths
-are ignored by Git and can be changed in `backend/.env.example`. Uploads are outside the frontend's
+The database is configured in `.env`. `var/uploads` is a disposable cache for newly uploaded files;
+missing cache files are restored from their owning database record. Legacy filesystem-only records
+need [migration](database.md) before losing their originals. Local paths are ignored by Git.
+Uploads are outside the frontend's
 public files and are returned only by authenticated download endpoints after an ownership check.
 Downloads use the retained original filename and return the original bytes.
 

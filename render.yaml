@@ -1,0 +1,43 @@
+# Vercel serves the frontend; PostgreSQL persists all private records and files.
+# Local paths below are disposable caches. No paid disk is required.
+services:
+  - type: web
+    name: mindmesh-api
+    runtime: python
+    repo: https://github.com/Autistic-coder/mind-mesh
+    branch: main
+    region: singapore
+    plan: free
+    numInstances: 1
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m alembic upgrade head && python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1 --no-proxy-headers --no-access-log
+    healthCheckPath: /api/ready
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: MINDMESH_ENV
+        value: production
+      - key: MINDMESH_DATABASE_URL
+        sync: false
+      - key: MINDMESH_ORIGIN
+        sync: false
+      - key: MINDMESH_SECURE_COOKIES
+        value: 'true'
+      - key: MINDMESH_SERVE_FRONTEND
+        value: 'false'
+      - key: MINDMESH_UPLOAD_DIR
+        value: /tmp/mindmesh/uploads
+      - key: MINDMESH_MODEL_DIR
+        value: /tmp/mindmesh/models
+      - key: MINDMESH_DB_POOL_SIZE
+        value: '2'
+      - key: MINDMESH_DB_MAX_OVERFLOW
+        value: '1'
+      - key: MINDMESH_TRUST_PROXY_HEADERS
+        value: 'false'
+      - key: OMP_NUM_THREADS
+        value: '1'
+      - key: OPENBLAS_NUM_THREADS
+        value: '1'
+      - key: MKL_NUM_THREADS
+        value: '1'

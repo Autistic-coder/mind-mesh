@@ -47,7 +47,7 @@ def get_settings() -> Settings:
     if not database_url:
         raise RuntimeError(
             "MINDMESH_DATABASE_URL is required. Copy the PostgreSQL connection string from "
-            "Supabase Dashboard > Connect into your local .env file."
+            "your PostgreSQL provider into your local .env file."
         )
     if database_url.startswith("sqlite") and not allow_sqlite:
         raise RuntimeError(

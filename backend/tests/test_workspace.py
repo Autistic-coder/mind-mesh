@@ -505,7 +505,11 @@ def test_missing_original_is_reported_without_hiding_saved_metadata(api):
         client, csrf, "POST", "/api/datasets", files={"file": ("Research.csv", CSV, "text/csv")}
     ).json()
     with DbSession(engine) as db:
-        stored_name = db.get(Dataset, uploaded["id"]).stored_name
+        dataset = db.get(Dataset, uploaded["id"])
+        stored_name = dataset.stored_name
+        # Legacy metadata can have neither durable bytes nor a local original.
+        dataset.content_bytes = None
+        db.commit()
     (tmp_path / "uploads" / stored_name).unlink()
     details = client.get(f"/api/datasets/{uploaded['id']}").json()
     assert details["storageStatus"] == "missing"

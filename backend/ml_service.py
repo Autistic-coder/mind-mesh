@@ -45,6 +45,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .config import get_settings
 from .database import get_engine
 from .models import Dataset, ModelMetadata, TrainingConfig, TrainingRun, utcnow
+from .storage import MAX_ARTIFACT_BYTES, materialize
 
 MAX_TRAIN_ROWS = 100_000
 MAX_FEATURES = 50
@@ -74,6 +75,8 @@ def _stored_path(dataset: Dataset) -> Path:
     ):
         raise ValueError("This preview-only dataset has no original file. Re-upload it to train.")
     path = get_settings().upload_dir / dataset.stored_name
+    if not path.is_file():
+        materialize(path, dataset.content_bytes)
     if not path.is_file():
         raise ValueError("The original dataset file is unavailable. Re-upload it to train.")
     return path
@@ -410,9 +413,14 @@ def execute_run(run_id: str) -> None:
                 finally:
                     temporary.unlink(missing_ok=True)
                 written.append(destination)
+                if destination.stat().st_size > MAX_ARTIFACT_BYTES:
+                    raise ValueError("The trained model exceeds the 50 MB demo storage limit.")
                 metadata["artifactName"] = name
                 model = ModelMetadata(
-                    owner_id=run.owner_id, run_id=run.id, metadata_json=_json(metadata)
+                    owner_id=run.owner_id,
+                    run_id=run.id,
+                    metadata_json=_json(metadata),
+                    artifact_bytes=destination.read_bytes(),
                 )
                 db.add(model)
                 db.flush()
@@ -458,11 +466,13 @@ def recover_interrupted_runs() -> None:
         db.commit()
 
 
-def artifact_path(metadata: dict) -> Path:
+def artifact_path(metadata: dict, model: ModelMetadata) -> Path:
     name = metadata.get("artifactName")
     if not isinstance(name, str) or not ARTIFACT_NAME.fullmatch(name):
         raise HTTPException(409, "This saved model artifact is invalid.")
     path = get_settings().model_dir / name
+    if not path.is_file():
+        materialize(path, model.artifact_bytes)
     if not path.is_file():
         raise HTTPException(409, "This saved model file is missing. Train the model again.")
     version = metadata.get("versions", {}).get("scikitLearn")
@@ -473,9 +483,9 @@ def artifact_path(metadata: dict) -> Path:
     return path
 
 
-def load_pipeline(metadata: dict):
+def load_pipeline(metadata: dict, model: ModelMetadata):
     try:
-        return joblib.load(artifact_path(metadata))
+        return joblib.load(artifact_path(metadata, model))
     except HTTPException:
         raise
     except Exception as error:

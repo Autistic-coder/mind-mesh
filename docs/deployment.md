@@ -1,7 +1,8 @@
 # Deploy one MindMesh instance
 
 This path uses Docker Compose on an existing Linux VM and Caddy for HTTPS. It keeps React, FastAPI,
-SQLAlchemy, Supabase PostgreSQL, the existing cookie login, and private filesystem storage. No cloud
+SQLAlchemy, standard PostgreSQL, the existing cookie login, and private file caches. Complete dataset
+and model bytes persist in PostgreSQL. For the free hosted demo, see [Vercel and Render](vercel-render.md). No cloud
 resources are created by these files. The Docker image has not been built on the development machine
 when Docker is unavailable; see the release verification record for checks actually performed.
 
@@ -22,7 +23,7 @@ Jobs use the in-process executor, not a durable queue. On a clean database-conne
 or running records are marked interrupted and can be resubmitted. Wait for runs to finish before
 upgrades. If startup reports a database outage, restore the connection and restart the container so
 recovery runs before accepting new training. A future multi-instance deployment requires a durable
-worker, distributed capacity control, and shared object storage.
+worker and distributed capacity control.
 
 ## Prepare an image and environment
 
@@ -33,20 +34,20 @@ that VM. Copy `backend/.env.example` to `.env` and fill it locally. Required pro
 MINDMESH_ENV=production
 MINDMESH_ORIGIN=https://mindmesh.example.com
 MINDMESH_SECURE_COOKIES=true
-MINDMESH_DATABASE_URL=postgresql+psycopg://USER:ENCODED_PASSWORD@EXACT_SUPABASE_HOST:5432/postgres?sslmode=require
+MINDMESH_DATABASE_URL=postgresql+psycopg://USER:ENCODED_PASSWORD@DATABASE_HOST:5432/postgres?sslmode=require
 MINDMESH_TRUST_PROXY_HEADERS=false
 OPENAI_API_KEY=
 MINDMESH_LLM_MODEL=gpt-4.1-mini
 ```
 
-Use the exact direct or Session pooler URI from Supabase Connect. The Session pooler supports IPv4;
-transaction pooling is unsupported because the runtime uses session search paths. Percent-encode
-the password. Use the Supabase CA with `sslmode=verify-full` when managing certificate verification.
+Use a direct PostgreSQL URI from your provider. Transaction pooling is unsupported because the
+runtime uses session search paths. Percent-encode the password. Use the provider CA with
+`sslmode=verify-full` when managing certificate verification.
 Never put these credentials in `VITE_*` variables, Docker build arguments, or the repository.
 
 Optional elevated migration credentials and an existing runtime role are described in
-[Supabase setup](supabase.md). Runtime access should be limited to the private schema. Do not expose
-`mindmesh` in the Supabase Data API. Existing UUIDs are MindMesh account IDs, not Supabase Auth IDs.
+[Database setup](database.md). Runtime access should be limited to the private schema. Existing
+UUIDs are MindMesh account IDs; the backend manages authentication and authorization.
 
 ```sh
 docker compose build
@@ -93,11 +94,11 @@ Uvicorn's independent forwarded-header parsing.
 ## Persistent files, backup, restore, upgrades
 
 Compose mounts `mindmesh-data` at `/data`, containing `uploads/` and `models/`. Do not run
-`docker compose down -v`, which deletes the named volume. Back up both the Supabase database and
-this volume while the app is stopped, then restore them together. Database-only backups cannot
-recover originals or fitted models. A container restart preserves the volume and database.
+`docker compose down -v`, which deletes the named volume. The database contains durable bytes for
+new records. Back up the whole database including binary columns. Legacy filesystem-only records
+still require a volume backup until migrated. A container restart preserves the volume and database.
 
-For the existing local SQLite cutover, follow [the stopped-service import and rollback procedure](supabase.md).
+For a provider change or older local records, follow [the stopped-service copy procedure](database.md).
 Transfer the contents of local `var/uploads` and `var/models` into their matching volume directories;
 preserve filenames and make them writable by the container's `mindmesh` user. Test one original
 download and one saved prediction after transfer. Never import user-uploaded pickles/joblib files.

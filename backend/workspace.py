@@ -22,6 +22,7 @@ from .ml_service import model_artifact_paths
 from .models import Conversation, Dataset, Project, TrainingConfig, TrainingRun, User, utcnow
 from .models import Session as AccountSession
 from .rate_limits import user_limit
+from .storage import materialize
 
 router = APIRouter(prefix="/api", tags=["workspace"])
 STORED_NAME = re.compile(r"[0-9a-f]{32}\.(csv|xlsx)\Z")
@@ -113,7 +114,9 @@ def dataset_json(dataset: Dataset) -> dict:
     has_file = bool(
         dataset.stored_name
         and STORED_NAME.fullmatch(dataset.stored_name)
-        and (get_settings().upload_dir / dataset.stored_name).is_file()
+        and (
+            dataset.file_in_database or (get_settings().upload_dir / dataset.stored_name).is_file()
+        )
     )
     storage_status = (
         "complete" if has_file else "missing" if dataset.original_name else "preview-only"
@@ -400,6 +403,7 @@ async def upload_dataset(
             name=summary["name"],
             original_name=filename,
             stored_name=stored_name,
+            content_bytes=await run_in_threadpool(stored_path.read_bytes),
             content_type="text/csv"
             if extension == ".csv"
             else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -452,6 +456,8 @@ def download_dataset(
     if not dataset.stored_name or not STORED_NAME.fullmatch(dataset.stored_name):
         raise HTTPException(404, "Original file unavailable.")
     stored_path = get_settings().upload_dir / dataset.stored_name
+    if not stored_path.is_file():
+        materialize(stored_path, dataset.content_bytes)
     if not stored_path.is_file():
         raise HTTPException(404, "Original file unavailable.")
     return FileResponse(

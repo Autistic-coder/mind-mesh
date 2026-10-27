@@ -25,7 +25,7 @@ npm.cmd ci
 
 The Python requirements include pandas, NumPy, SciPy, joblib, and scikit-learn. Do not commit files
 created under `var/`; that ignored directory holds legacy SQLite backups, private uploads, and fitted
-models. Configure Supabase first using [Supabase setup](supabase.md); PostgreSQL holds current records.
+models. Configure PostgreSQL using [Database setup](database.md); it holds current records and file bytes.
 
 ## 2. Start the backend and frontend
 

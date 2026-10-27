@@ -1,6 +1,28 @@
 # Release verification — 27 October 2026
 
-Checks run on the existing Windows PowerShell workspace:
+## Database portability update
+
+This update stores complete dataset/model bytes in standard PostgreSQL, uses disposable private
+file caches, and prepares Vercel + Render Free deployment with a Neon connection. Checks on the
+Windows workspace: 36 backend tests passed (3 PostgreSQL-only tests skipped), 15 frontend tests passed,
+17 Chromium browser tests passed, and TypeScript/Vite build, ESLint, Prettier, Ruff lint/format,
+and Render Blueprint JSON-schema validation passed. The Render CLI is not installed; schema
+validation is not a Render deployment test.
+
+New tests cover empty-cache training/download/prediction recovery across application sessions,
+cross-account and anonymous denial before cache hydration, lazy binary loading, cascade deletion,
+provider-copy dry run, verified file bytes, occupied destination refusal, and rollback on missing
+legacy files. Copy tests use disposable SQLite fixtures; a real provider-to-provider PostgreSQL
+copy remains unverified until a destination connection is supplied.
+
+The existing database connection has intentionally not been switched or deleted. Live Neon
+cutover and hosted HTTPS verification are pending the destination connection, the user's Render
+workspace choice, and manual Git push. No paid resources or live LLM calls were created. The
+previous release results below are historical and describe the old hosting provider.
+
+## Previous release
+
+Checks run on the existing Windows PowerShell workspace before this update:
 
 | Check                                    | Result                                                          |
 | ---------------------------------------- | --------------------------------------------------------------- |

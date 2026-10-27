@@ -1,13 +1,13 @@
 # MindMesh
 
 MindMesh is a private workspace for organizing projects, inspecting CSV/XLSX datasets, and training
-measured tabular models. It uses React, TypeScript, Vite, FastAPI, SQLAlchemy, Supabase PostgreSQL,
+measured tabular models. It uses React, TypeScript, Vite, FastAPI, SQLAlchemy, standard PostgreSQL,
 and scikit-learn.
 
 Create an account, upload a dataset, choose a classification or regression task, compare real
 models on held-out rows, and reuse a saved pipeline for single or batch predictions. Accounts and
-workspace records persist in PostgreSQL. Original datasets and fitted model files remain in private
-server directories and are served only through ownership-checked API endpoints.
+workspace records, complete original datasets, and fitted models persist in PostgreSQL. Private
+server directories cache files for parsing and inference; ownership-checked endpoints control access.
 
 ## Run locally
 
@@ -15,12 +15,11 @@ Requirements:
 
 - Node.js 22.12 or newer
 - Python 3.11 or newer
-- A Supabase PostgreSQL project
+- A PostgreSQL database (for example Neon Free)
 
-Copy `backend/.env.example` to `.env`. In Supabase Dashboard, open **Connect** and copy the exact
-direct connection or Session pooler URI into `MINDMESH_DATABASE_URL`. Keep the URI only in `.env`.
-Use the Session pooler when the machine cannot connect over IPv6. Do not use a transaction pooler
-for migrations.
+Copy `backend/.env.example` to `.env` and put your direct PostgreSQL connection URI in
+`MINDMESH_DATABASE_URL`. In Neon, disable connection pooling in **Connect**. Keep the URI only in
+`.env`; do not use a transaction pooler because the app uses a private session search path.
 
 One-time Python setup from `C:\Users\Vaibhav\Desktop\ai ml\ai ml project`:
 
@@ -60,19 +59,21 @@ $env:PATH = "$(Get-Location)\.local\node-v24.21.0-win-x64;$env:PATH"
 npm.cmd run dev
 ```
 
-See [Supabase setup and SQLite cutover](docs/supabase.md) before moving existing local records.
+See [Database setup and safe provider migration](docs/database.md) before changing an existing
+connection. Preserve the old connection and files until the copy is verified.
 
 ## What is stored where
 
-- Supabase PostgreSQL stores users, opaque session hashes, projects, dataset metadata, training
+- PostgreSQL stores users, opaque session hashes, projects, dataset metadata, training
   configurations and runs, model metadata, prediction history, conversations, and shared rate
   limits in the private `mindmesh` schema.
-- `var/uploads` stores complete uploaded datasets under server-generated names.
-- `var/models` stores fitted joblib pipelines under server-generated names.
-- The browser never receives a database password and never connects to Supabase directly.
+- Complete uploads and trained model bytes live on their owning database rows, with lazy loading.
+- `var/uploads` and `var/models` cache private files under server-generated names. New records can
+  recover those files after cache loss; older filesystem-only records need the migration first.
+- The browser never receives a database password or connects directly to PostgreSQL.
 
-The `mindmesh` schema is outside Supabase's default Data API exposure. Migrations revoke access from
-`PUBLIC`, `anon`, and `authenticated`; the FastAPI server remains the authorization boundary. Every
+The private `mindmesh` schema is accessed only through the backend. Migrations revoke public
+access; the FastAPI server remains the authorization boundary. Every
 private query also constrains records by the account ID derived from its server session.
 
 Older browser-only workspaces stay untouched in `localStorage` under `mindmesh.workspace.v1`. In
@@ -125,10 +126,10 @@ excluded. Conversations can be reopened or deleted privately.
 
 See [Beginner guide](docs/beginner-guide.md), [Teacher demo](docs/demo-guide.md),
 [Deployment](docs/deployment.md), and [Release verification](docs/release-verification.md).
-Production uses a single Docker container serving the frontend and API together, Supabase PostgreSQL,
-and a persistent file volume behind HTTPS. This repository prepares deployment without provisioning
-or publishing it. Both development services must run locally; no combined launcher is required.
+The free demo deployment uses [Vercel, Render Free, and Neon](docs/vercel-render.md). A Docker
+deployment behind HTTPS remains available. Both local development services must run. Deployment
+configuration alone does not publish a working application.
 
-MindMesh does not use Supabase Auth, Supabase Storage, or direct browser database access. Training
+MindMesh does not depend on provider authentication, object storage, or browser database access. Training
 supports one API process and one training thread; production monitoring and distributed workers are
 outside this deployment.

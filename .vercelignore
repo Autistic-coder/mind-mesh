@@ -1,0 +1,13 @@
+.env
+.env.*
+backend/
+var/
+.venv/
+.local/
+.git/
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.db
+*.sqlite*

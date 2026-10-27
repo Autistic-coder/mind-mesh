@@ -49,13 +49,13 @@ def make_engine(database_url: str | None = None) -> Engine:
         pool_timeout=10,
         pool_recycle=300,
         hide_parameters=True,
-        connect_args={"connect_timeout": 10, "options": "-csearch_path=mindmesh,public"},
+        connect_args={"connect_timeout": 10},
     )
 
     @event.listens_for(engine, "connect")
     def set_private_search_path(connection, _record):
-        # Supabase's Session pooler may ignore startup `options`. SET SESSION in
-        # autocommit mode makes the schema selection survive SQLAlchemy rollbacks.
+        # Set the private schema explicitly, including when using a session pooler.
+        # Autocommit makes the selection survive SQLAlchemy rollbacks.
         previous_autocommit = connection.autocommit
         connection.autocommit = True
         try:

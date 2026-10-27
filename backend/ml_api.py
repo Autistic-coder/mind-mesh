@@ -158,7 +158,7 @@ def create_run(
             400, "Preview-only datasets cannot be trained. Re-upload the original file."
         )
     stored_path = get_settings().upload_dir / dataset.stored_name
-    if not stored_path.is_file():
+    if not dataset.file_in_database and not stored_path.is_file():
         raise HTTPException(
             409, "The original dataset file is missing. Re-upload it before training."
         )
@@ -338,7 +338,7 @@ def predict_single(
     user_limit("prediction", session.user_id, get_settings().rate_predict_minute)
     model = owned_model(db, session.user_id, model_id)
     metadata = json.loads(model.metadata_json)
-    outputs = predict_records(load_pipeline(metadata), metadata, [payload.record])
+    outputs = predict_records(load_pipeline(metadata, model), metadata, [payload.record])
     history = save_prediction(db, session.user_id, model.id, payload.record, outputs[0])
     return {"id": history.id, **outputs[0], "createdAt": history.created_at.isoformat()}
 
@@ -384,7 +384,7 @@ def predict_batch(
     if len(records) > MAX_BATCH_ROWS:
         raise HTTPException(400, f"Batch prediction supports up to {MAX_BATCH_ROWS:,} rows.")
     metadata = json.loads(model.metadata_json)
-    outputs = predict_records(load_pipeline(metadata), metadata, records)
+    outputs = predict_records(load_pipeline(metadata, model), metadata, records)
     destination = io.StringIO(newline="")
     probability_labels = list(outputs[0].get("probabilities", {}))
     fields = [

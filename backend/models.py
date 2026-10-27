@@ -1,14 +1,14 @@
 """Persistent account and workspace records.
 
 Every private row has an owner_id so resource queries can constrain ownership at
-the database boundary. Dataset bytes live outside the public web root.
+the database boundary. Durable dataset/model bytes live in lazily loaded private columns.
 """
 
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from .database import Base
 
@@ -61,6 +61,8 @@ class Dataset(Base):
     project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
     name: Mapped[str] = mapped_column(String(255))
     stored_name: Mapped[str | None] = mapped_column(String(80), unique=True)
+    content_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    file_in_database = column_property(content_bytes.is_not(None))
     original_name: Mapped[str | None] = mapped_column(String(255))
     content_type: Mapped[str | None] = mapped_column(String(100))
     size_bytes: Mapped[int | None] = mapped_column(Integer)
@@ -100,6 +102,7 @@ class ModelMetadata(Base):
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     run_id: Mapped[str] = mapped_column(ForeignKey("training_runs.id", ondelete="CASCADE"))
     metadata_json: Mapped[str] = mapped_column(Text)
+    artifact_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
