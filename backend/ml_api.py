@@ -4,12 +4,13 @@ import csv
 import io
 import json
 from pathlib import Path
+from threading import Lock
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .auth import current_user, require_csrf
@@ -30,6 +31,13 @@ from .models import Session as AccountSession
 from .rate_limits import user_limit
 
 router = APIRouter(prefix="/api/ml", tags=["machine-learning"])
+submission_lock = Lock()
+
+
+def serialize_submission():
+    # Supported deployment: one API process, one training thread, four pending/running runs.
+    with submission_lock:
+        yield
 
 
 class RunInput(BaseModel):
@@ -126,13 +134,24 @@ def list_runs(
     return [run_json(db, item) for item in db.scalars(query)]
 
 
-@router.post("/runs", status_code=202)
+@router.post("/runs", status_code=202, dependencies=[Depends(serialize_submission)])
 def create_run(
     payload: RunInput,
     session: AccountSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
     user_limit("training-run", session.user_id, get_settings().rate_train_minute)
+    pending = db.scalar(
+        select(func.count())
+        .select_from(TrainingRun)
+        .where(TrainingRun.status.in_(["queued", "running"]))
+    )
+    if pending >= 4:
+        raise HTTPException(
+            503,
+            "The training queue is full. Wait for a run to finish and try again.",
+            headers={"Retry-After": "30"},
+        )
     dataset = owned_dataset(db, session.user_id, payload.datasetId)
     if not dataset.stored_name:
         raise HTTPException(
@@ -280,9 +299,7 @@ async def predict_batch(
     session: AccountSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
-    user_limit(
-        "batch-prediction", session.user_id, get_settings().rate_batch_predict_minute
-    )
+    user_limit("batch-prediction", session.user_id, get_settings().rate_batch_predict_minute)
     model = owned_model(db, session.user_id, model_id)
     filename = file.filename or ""
     if not filename.lower().endswith(".csv") or Path(filename).name != filename:

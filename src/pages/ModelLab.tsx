@@ -71,13 +71,13 @@ const LABELS: Record<string, string> = {
 }
 
 const METRIC_HELP: Record<string, string> = {
-  accuracy: 'How often the predicted answer was correct.',
+  accuracy: 'How often the predicted answer was correct. Higher is better.',
   precisionMacro: 'When the model predicts a category, how often it is right.',
   recallMacro: 'How many actual examples of a category the model finds.',
   f1Macro: 'A combined measure of precision and recall.',
   baselineAccuracy: 'The accuracy from always choosing the most common answer.',
-  mae: 'The average size of the prediction error.',
-  rmse: 'An error measure that gives more weight to large mistakes.',
+  mae: 'The average size of the prediction error. Lower is better.',
+  rmse: 'An error measure that gives more weight to large mistakes. Lower is better.',
   r2: 'Compares prediction error with a constant-mean reference. Higher is generally better; it can be negative.',
   baselineMae: 'The average error from always predicting the training-row mean.',
 }
@@ -619,7 +619,7 @@ export function ModelLab() {
                 ))}
               </select>
               <small className="field-help">
-                Choose the column containing the answers your model should learn.
+                The target is the answer you want the model to learn to predict.
               </small>
             </label>
             {task === 'regression' && target && selectedTarget?.type !== 'number' && (
@@ -640,8 +640,9 @@ export function ModelLab() {
           <>
             <h2 id="lab-step-2">Which information should the model use?</h2>
             <p className="lab-help">
-              Choose the columns available when making a new prediction. Leave out the answer column
-              and identifiers such as customer IDs. These input columns are also called features.
+              Features are the information the model uses to make a prediction. Choose columns
+              available when making a new prediction. Leave out the answer, copies of it, values
+              calculated from it, and identifiers such as customer IDs.
             </p>
             <div className="feature-list">
               {schema?.columns
@@ -784,7 +785,8 @@ export function ModelLab() {
             <h2 id="lab-step-4">Measured results.</h2>
             <p className="lab-help">
               Compare results measured on rows the models did not learn from, then choose one fitted
-              model to use for predictions.
+              model to use for predictions. A good test score does not guarantee accuracy on future
+              real-world examples. Higher precision, recall, and F1 are better.
             </p>
             {selectedRun && ['queued', 'running'].includes(selectedRun.status) && (
               <div className="training-state" role="status">

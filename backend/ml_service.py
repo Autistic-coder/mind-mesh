@@ -21,6 +21,7 @@ import sklearn
 from fastapi import HTTPException
 from openpyxl import load_workbook
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.inspection import permutation_importance
@@ -290,6 +291,16 @@ def train_models(
         raise ValueError(f"The held-out split is not valid for this target: {error}") from error
     results = []
     artifacts = []
+    for name in features:
+        if X_train[name].notna().sum() == 0:
+            raise ValueError(f"Feature '{name}' has no values in the training split. Exclude it.")
+    baseline = (
+        DummyClassifier(strategy="most_frequent")
+        if task == "classification"
+        else DummyRegressor(strategy="mean")
+    )
+    baseline.fit(X_train, y_train)
+    baseline_predictions = baseline.predict(X_test)
     for algorithm in config["algorithms"]:
         pipeline = _pipeline(task, algorithm, numeric, categorical, seed)
         pipeline.fit(X_train, y_train)
@@ -311,7 +322,7 @@ def train_models(
         }
         if task == "classification":
             labels = sorted({str(value) for value in y})
-            majority = float(y_test.value_counts(normalize=True).max())
+            majority = float(accuracy_score(y_test, baseline_predictions))
             metrics = {
                 "accuracy": float(accuracy_score(y_test, predicted)),
                 "precisionMacro": float(
@@ -340,9 +351,7 @@ def train_models(
                 "mae": float(mean_absolute_error(y_test, predicted)),
                 "rmse": rmse,
                 "r2": float(r2_score(y_test, predicted)) if len(y_test) > 1 else None,
-                "baselineMae": float(
-                    mean_absolute_error(y_test, np.repeat(y_train.mean(), len(y_test)))
-                ),
+                "baselineMae": float(mean_absolute_error(y_test, baseline_predictions)),
             }
             result = {
                 **common,
